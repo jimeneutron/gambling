@@ -2,6 +2,7 @@
  * CasinoSim - Texas Hold'em Poker Game Logic
  * ============================================
  * Complete poker engine with hand evaluation, betting rounds, and showdown
+ * Fixed: Works without ES6 modules for local file access
  */
 
 // ============================================
@@ -77,7 +78,7 @@ let gameState = {
     pot: 0,
     playerBet: 0,
     dealerBet: 0,
-    currentPhase: 'idle', // idle, preflop, flop, turn, river, showdown
+    currentPhase: 'idle',
     gameOver: false,
     winner: null,
     playerHandRank: null,
@@ -89,11 +90,7 @@ let gameState = {
 // DECK MANAGEMENT
 // ============================================
 
-/**
- * Create a new deck of cards
- * @returns {Array} Array of card objects
- */
-const createDeck = () => {
+function createDeck() {
     const deck = [];
     
     for (const suit of SUITS) {
@@ -109,14 +106,9 @@ const createDeck = () => {
     }
     
     return deck;
-};
+}
 
-/**
- * Shuffle deck using Fisher-Yates algorithm
- * @param {Array} deck - Array to shuffle
- * @returns {Array} Shuffled array
- */
-const shuffleDeck = (deck) => {
+function shuffleDeck(deck) {
     const shuffled = [...deck];
     
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -125,58 +117,35 @@ const shuffleDeck = (deck) => {
     }
     
     return shuffled;
-};
+}
 
-/**
- * Create and shuffle a new deck
- * @returns {Array} Shuffled deck
- */
-const getNewShuffledDeck = () => {
+function getNewShuffledDeck() {
     const deck = createDeck();
     return shuffleDeck(deck);
-};
+}
 
-/**
- * Draw a card from the deck
- * @returns {Object} Card object
- */
-const drawCard = () => {
+function drawCard() {
     if (gameState.deck.length === 0) {
         gameState.deck = getNewShuffledDeck();
     }
     return gameState.deck.pop();
-};
+}
 
 // ============================================
 // HAND EVALUATION
 // ============================================
 
-/**
- * Get numeric values from cards
- * @param {Array} cards - Array of card objects
- * @returns {Array} Sorted numeric values
- */
-const getCardValues = (cards) => {
+function getCardValues(cards) {
     return cards.map(c => c.value).sort((a, b) => a - b);
-};
+}
 
-/**
- * Check if all cards have the same suit
- * @param {Array} cards - Array of card objects
- * @returns {boolean}
- */
-const isFlush = (cards) => {
+function isFlush(cards) {
     if (cards.length < 5) return false;
     const firstSuit = cards[0].suit;
     return cards.every(card => card.suit === firstSuit);
-};
+}
 
-/**
- * Check for sequential values (handles A-2-3-4-5 wheel)
- * @param {Array} cards - Array of card objects
- * @returns {boolean}
- */
-const isStraight = (cards) => {
+function isStraight(cards) {
     if (cards.length < 5) return false;
     
     const values = getCardValues(cards);
@@ -196,14 +165,9 @@ const isStraight = (cards) => {
     }
     
     return false;
-};
+}
 
-/**
- * Get the lowest value in a straight (for A-2-3-4-5)
- * @param {Array} cards - Array of card objects
- * @returns {number} Lowest value or null
- */
-const getStraightLowValue = (cards) => {
+function getStraightLowValue(cards) {
     const values = getCardValues(cards);
     const uniqueValues = [...new Set(values)];
     
@@ -220,42 +184,27 @@ const getStraightLowValue = (cards) => {
     }
     
     return null;
-};
+}
 
-/**
- * Count occurrences of each rank
- * @param {Array} cards - Array of card objects
- * @returns {Object} Map of rank to count
- */
-const countRanks = (cards) => {
+function countRanks(cards) {
     const counts = {};
     for (const card of cards) {
         counts[card.value] = (counts[card.value] || 0) + 1;
     }
     return counts;
-};
+}
 
-/**
- * Get grouped counts (for pairs, trips, quads)
- * @param {Array} cards - Array of card objects
- * @returns {Array} Array of [count, value] pairs sorted by count desc, then value desc
- */
-const getRankGroups = (cards) => {
+function getRankGroups(cards) {
     const counts = countRanks(cards);
     return Object.entries(counts)
         .map(([value, count]) => [parseInt(count), parseInt(value)])
         .sort((a, b) => {
-            if (a[0] !== b[0]) return b[0] - a[0]; // Higher count first
-            return b[1] - a[1]; // Higher value first
+            if (a[0] !== b[0]) return b[0] - a[0];
+            return b[1] - a[1];
         });
-};
+}
 
-/**
- * Evaluate a 5+ card poker hand
- * @param {Array} cards - Array of 5+ card objects
- * @returns {Object} Hand evaluation result
- */
-const evaluateHand = (cards) => {
+function evaluateHand(cards) {
     if (cards.length < 5) {
         return { rank: HAND_RANKINGS.HIGH_CARD, value: 0, kickers: [], name: 'Incomplete' };
     }
@@ -265,7 +214,7 @@ const evaluateHand = (cards) => {
     const groups = rankGroups.map(g => g[0]);
     const values = rankGroups.map(g => g[1]);
     
-    // Royal Flush
+    // Royal Flush and Straight Flush
     const flushCards = sortedCards.filter(c => 
         sortedCards.filter(sc => sc.suit === c.suit).length >= 5
     );
@@ -368,39 +317,9 @@ const evaluateHand = (cards) => {
         kickers: sortedCards.slice(1, 5).map(c => c.value),
         name: 'High Card'
     };
-};
+}
 
-/**
- * Find the best 5-card hand from 7 cards
- * @param {Array} allCards - Array of 7 card objects
- * @returns {Object} Best hand evaluation
- */
-const findBestHand = (allCards) => {
-    let bestHand = null;
-    let bestEvaluation = null;
-    
-    // Try all combinations of 5 cards from 7
-    const combinations = getCombinations(allCards, 5);
-    
-    for (const combo of combinations) {
-        const evaluation = evaluateHand(combo);
-        
-        if (bestEvaluation === null || isBetterHand(evaluation, bestEvaluation)) {
-            bestEvaluation = evaluation;
-            bestHand = combo;
-        }
-    }
-    
-    return bestEvaluation;
-};
-
-/**
- * Get all combinations of k elements from array
- * @param {Array} array - Source array
- * @param {number} k - Size of combinations
- * @returns {Array} Array of combinations
- */
-const getCombinations = (array, k) => {
+function getCombinations(array, k) {
     if (k === 1) return array.map(item => [item]);
     if (k === 0) return [[]];
     
@@ -415,15 +334,27 @@ const getCombinations = (array, k) => {
     }
     
     return results;
-};
+}
 
-/**
- * Compare two hand evaluations
- * @param {Object} hand1 - First hand evaluation
- * @param {Object} hand2 - Second hand evaluation
- * @returns {boolean} True if hand1 is better
- */
-const isBetterHand = (hand1, hand2) => {
+function findBestHand(allCards) {
+    let bestHand = null;
+    let bestEvaluation = null;
+    
+    const combinations = getCombinations(allCards, 5);
+    
+    for (const combo of combinations) {
+        const evaluation = evaluateHand(combo);
+        
+        if (bestEvaluation === null || isBetterHand(evaluation, bestEvaluation)) {
+            bestEvaluation = evaluation;
+            bestHand = combo;
+        }
+    }
+    
+    return bestEvaluation;
+}
+
+function isBetterHand(hand1, hand2) {
     if (hand1.rank !== hand2.rank) {
         return hand1.rank > hand2.rank;
     }
@@ -439,44 +370,30 @@ const isBetterHand = (hand1, hand2) => {
         }
     }
     
-    return false; // Tie
-};
+    return false;
+}
 
-/**
- * Evaluate player's best hand
- * @returns {Object} Hand evaluation
- */
-const evaluatePlayerHand = () => {
+function evaluatePlayerHand() {
     const allCards = [...gameState.playerHoleCards, ...gameState.communityCards];
     return findBestHand(allCards);
-};
+}
 
-/**
- * Evaluate dealer's best hand
- * @returns {Object} Hand evaluation
- */
-const evaluateDealerHand = () => {
+function evaluateDealerHand() {
     const allCards = [...gameState.dealerHoleCards, ...gameState.communityCards];
     return findBestHand(allCards);
-};
+}
 
 // ============================================
 // GAME ACTIONS
 // ============================================
 
-/**
- * Start a new Texas Hold'em hand
- * @param {number} buyIn - Buy-in amount (ante)
- * @returns {Object} Updated game state
- */
-const startHand = (buyIn) => {
-    // Reset game state
+function startHand(buyIn) {
     gameState = {
         deck: getNewShuffledDeck(),
         playerHoleCards: [],
         dealerHoleCards: [],
         communityCards: [],
-        pot: buyIn * 2, // Both player and dealer contribute buy-in
+        pot: buyIn * 2,
         playerBet: buyIn,
         dealerBet: buyIn,
         currentPhase: 'preflop',
@@ -493,21 +410,13 @@ const startHand = (buyIn) => {
     gameState.playerHoleCards.push(drawCard());
     gameState.dealerHoleCards.push(drawCard());
     
-    // Evaluate initial hand
     gameState.playerHandRank = evaluatePlayerHand();
     
     return gameState;
-};
+}
 
-/**
- * Deal the flop (first 3 community cards)
- * @returns {Object} Updated game state
- */
-const dealFlop = () => {
-    // Burn one card
+function dealFlop() {
     drawCard();
-    
-    // Deal 3 community cards
     gameState.communityCards.push(drawCard());
     gameState.communityCards.push(drawCard());
     gameState.communityCards.push(drawCard());
@@ -516,47 +425,29 @@ const dealFlop = () => {
     gameState.playerHandRank = evaluatePlayerHand();
     
     return gameState;
-};
+}
 
-/**
- * Deal the turn (4th community card)
- * @returns {Object} Updated game state
- */
-const dealTurn = () => {
-    // Burn one card
+function dealTurn() {
     drawCard();
-    
-    // Deal turn card
     gameState.communityCards.push(drawCard());
     
     gameState.currentPhase = 'turn';
     gameState.playerHandRank = evaluatePlayerHand();
     
     return gameState;
-};
+}
 
-/**
- * Deal the river (5th community card)
- * @returns {Object} Updated game state
- */
-const dealRiver = () => {
-    // Burn one card
+function dealRiver() {
     drawCard();
-    
-    // Deal river card
     gameState.communityCards.push(drawCard());
     
     gameState.currentPhase = 'river';
     gameState.playerHandRank = evaluatePlayerHand();
     
     return gameState;
-};
+}
 
-/**
- * Go to showdown
- * @returns {Object} Updated game state
- */
-const showdown = () => {
+function showdown() {
     gameState.currentPhase = 'showdown';
     
     const playerEval = evaluatePlayerHand();
@@ -576,59 +467,71 @@ const showdown = () => {
     gameState.gameOver = true;
     
     return gameState;
-};
+}
 
-/**
- * Player folds
- * @returns {Object} Updated game state
- */
-const playerFold = () => {
+function playerFold() {
     gameState.playerFolded = true;
     gameState.winner = 'dealer';
     gameState.gameOver = true;
     gameState.currentPhase = 'showdown';
     
     return gameState;
-};
+}
 
-/**
- * Player checks
- * @returns {Object} Updated game state
- */
-const playerCheck = () => {
+function playerCheck() {
     return advanceBetting();
-};
+}
 
-/**
- * Player calls
- * @param {number} amount - Additional amount to call
- * @returns {Object} Updated game state
- */
-const playerCall = (amount) => {
+function playerCall(amount) {
     gameState.playerBet += amount;
     gameState.pot += amount;
     
     return advanceBetting();
-};
+}
 
-/**
- * Player raises
- * @param {number} amount - Total bet amount
- * @returns {Object} Updated game state
- */
-const playerRaise = (amount) => {
+function playerRaise(amount) {
     gameState.playerBet = amount;
     gameState.pot += (amount - gameState.playerBet);
     
     return advanceBetting();
-};
+}
 
-/**
- * Advance to next betting round
- * @returns {Object} Updated game state
- */
-const advanceBetting = () => {
-    // Dealer AI decision
+function getDealerAction() {
+    return 'call';
+}
+
+function getCallAmount() {
+    return gameState.dealerBet - gameState.playerBet;
+}
+
+function getMinRaise() {
+    const callAmount = getCallAmount();
+    return callAmount + gameState.playerBet;
+}
+
+function resetGame() {
+    gameState = {
+        deck: [],
+        playerHoleCards: [],
+        dealerHoleCards: [],
+        communityCards: [],
+        pot: 0,
+        playerBet: 0,
+        dealerBet: 0,
+        currentPhase: 'idle',
+        gameOver: false,
+        winner: null,
+        playerHandRank: null,
+        dealerHandRank: null,
+        playerFolded: false
+    };
+}
+
+function getGameState() {
+    return gameState;
+}
+
+function advanceBetting() {
     const dealerAction = getDealerAction();
     
     switch (gameState.currentPhase) {
@@ -667,81 +570,19 @@ const advanceBetting = () => {
     }
     
     return gameState;
-};
-
-/**
- * Simple dealer AI
- * @returns {string} Action: 'call', 'raise', or 'fold'
- */
-const getDealerAction = () => {
-    // Always call/check (simple AI for now)
-    // Could be enhanced with hand strength evaluation
-    return 'call';
-};
-
-/**
- * Get amount needed to call
- * @returns {number} Call amount
- */
-const getCallAmount = () => {
-    // In this simplified version, player always matches dealer bet
-    return gameState.dealerBet - gameState.playerBet;
-};
-
-/**
- * Get minimum raise amount
- * @returns {number} Minimum raise
- */
-const getMinRaise = () => {
-    const callAmount = getCallAmount();
-    // Minimum raise is the size of the current bet
-    return callAmount + gameState.playerBet;
-};
-
-/**
- * Reset game state for new hand
- */
-const resetGame = () => {
-    gameState = {
-        deck: [],
-        playerHoleCards: [],
-        dealerHoleCards: [],
-        communityCards: [],
-        pot: 0,
-        playerBet: 0,
-        dealerBet: 0,
-        currentPhase: 'idle',
-        gameOver: false,
-        winner: null,
-        playerHandRank: null,
-        dealerHandRank: null,
-        playerFolded: false
-    };
-};
-
-/**
- * Get current game state
- * @returns {Object} Current game state
- */
-const getGameState = () => gameState;
+}
 
 // ============================================
 // CARD RENDERING
 // ============================================
 
-/**
- * Create HTML element for a card
- * @param {Object} card - Card object
- * @returns {HTMLElement} Card element
- */
-const createCardElement = (card) => {
+function createCardElement(card) {
     const cardEl = document.createElement('div');
     cardEl.className = `card ${card.color}`;
     
     const face = document.createElement('div');
     face.className = 'card-face';
     
-    // Top-left corner
     const topCorner = document.createElement('div');
     topCorner.className = 'card-corner';
     topCorner.innerHTML = `
@@ -749,12 +590,10 @@ const createCardElement = (card) => {
         <span class="card-suit">${card.suit}</span>
     `;
     
-    // Center
     const center = document.createElement('div');
     center.className = 'card-center';
     center.textContent = card.suit;
     
-    // Bottom-right corner
     const bottomCorner = document.createElement('div');
     bottomCorner.className = 'card-corner bottom';
     bottomCorner.innerHTML = `
@@ -768,26 +607,15 @@ const createCardElement = (card) => {
     cardEl.appendChild(face);
     
     return cardEl;
-};
+}
 
-/**
- * Create card back element
- * @returns {HTMLElement} Card back element
- */
-const createCardBack = () => {
+function createCardBack() {
     const cardEl = document.createElement('div');
     cardEl.className = 'card-back';
     return cardEl;
-};
+}
 
-/**
- * Render cards in a slot
- * @param {HTMLElement} slot - Slot element
- * @param {Object|null} card - Card object or null
- * @param {boolean} faceUp - Whether to show face up
- * @param {number} delay - Animation delay
- */
-const renderCard = (slot, card, faceUp = true, delay = 0) => {
+function renderCard(slot, card, faceUp = true, delay = 0) {
     slot.innerHTML = '';
     
     if (!card) {
@@ -801,12 +629,9 @@ const renderCard = (slot, card, faceUp = true, delay = 0) => {
     cardEl.style.animationDelay = `${delay}s`;
     cardEl.classList.add('dealing');
     slot.appendChild(cardEl);
-};
+}
 
-/**
- * Reveal dealer cards
- */
-const revealDealerCards = () => {
+function revealDealerCards() {
     const slot1 = document.getElementById('dealerCard1');
     const slot2 = document.getElementById('dealerCard2');
     
@@ -825,17 +650,12 @@ const revealDealerCards = () => {
             slot2.appendChild(cardEl);
         }, 200);
     }
-};
+}
 
-/**
- * Render all game cards
- */
-const renderAllCards = () => {
-    // Player hole cards
+function renderAllCards() {
     renderCard(document.getElementById('playerCard1'), gameState.playerHoleCards[0], true, 0);
     renderCard(document.getElementById('playerCard2'), gameState.playerHoleCards[1], true, 0.1);
     
-    // Dealer hole cards (face down until showdown)
     const dealerFaceUp = gameState.currentPhase === 'showdown' || gameState.gameOver;
     renderCard(document.getElementById('dealerCard1'), 
               dealerFaceUp ? gameState.dealerHoleCards[0] : null, 
@@ -844,7 +664,6 @@ const renderAllCards = () => {
               dealerFaceUp ? gameState.dealerHoleCards[1] : null, 
               dealerFaceUp, 0.3);
     
-    // Community cards
     const boardSlots = ['boardCard1', 'boardCard2', 'boardCard3', 'boardCard4', 'boardCard5'];
     for (let i = 0; i < 5; i++) {
         const slot = document.getElementById(boardSlots[i]);
@@ -858,16 +677,12 @@ const renderAllCards = () => {
         }
     }
     
-    // Reveal dealer cards at showdown
     if (gameState.currentPhase === 'showdown' && gameState.gameOver) {
         revealDealerCards();
     }
-};
+}
 
-/**
- * Update phase indicator
- */
-const updatePhaseIndicator = () => {
+function updatePhaseIndicator() {
     const phaseText = document.getElementById('phaseText');
     const phaseNames = {
         'preflop': 'Pre-Flop',
@@ -882,13 +697,9 @@ const updatePhaseIndicator = () => {
     } else {
         phaseText.textContent = '';
     }
-};
+}
 
-/**
- * Get phase name for display
- * @returns {string} Phase name
- */
-const getPhaseName = () => {
+function getPhaseName() {
     const phaseNames = {
         'preflop': 'Pre-Flop',
         'flop': 'Flop',
@@ -896,13 +707,13 @@ const getPhaseName = () => {
         'river': 'River'
     };
     return phaseNames[gameState.currentPhase] || '';
-};
+}
 
 // ============================================
-// EXPORTS
+// GLOBAL EXPORTS (for compatibility)
 // ============================================
 
-export const poker = {
+window.poker = {
     startHand,
     dealFlop,
     dealTurn,
@@ -922,7 +733,7 @@ export const poker = {
     HAND_NAMES
 };
 
-export const renderPoker = {
+window.renderPoker = {
     renderCard,
     renderAllCards,
     revealDealerCards,
@@ -931,5 +742,3 @@ export const renderPoker = {
     createCardElement,
     createCardBack
 };
-
-export { SUITS, RANKS, SUIT_COLORS, RANK_VALUES, RANK_DISPLAY };
