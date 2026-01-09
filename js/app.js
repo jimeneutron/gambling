@@ -98,6 +98,11 @@ function showMessage(message, type = '') {
     if (type) {
         DOM.gameMessage.classList.add(type);
     }
+    
+    // Auto-hide message after 1 second
+    setTimeout(() => {
+        hideMessage();
+    }, 1000);
 }
 
 function hideMessage() {
