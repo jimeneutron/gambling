@@ -2,6 +2,7 @@
  * CasinoSim - Texas Hold'em Application Controller
  * =================================================
  * Handles user interface, authentication, and poker game coordination
+ * Fixed: Works without ES6 modules for local file access
  */
 
 // ============================================
@@ -13,7 +14,7 @@ const AppState = {
     userData: null,
     buyInAmount: 0,
     currentBet: 0,
-    gamePhase: 'idle', // idle, preflop, flop, turn, river, showdown
+    gamePhase: 'idle',
     unsubscribeFromUser: null,
     isDemoMode: false
 };
@@ -23,31 +24,26 @@ const AppState = {
 // ============================================
 
 const DOM = {
-    // Modals
     loginModal: document.getElementById('loginModal'),
     gameApp: document.getElementById('gameApp'),
     loadingOverlay: document.getElementById('loadingOverlay'),
     bankruptcyModal: document.getElementById('bankruptcyModal'),
     rulesModal: document.getElementById('rulesModal'),
     
-    // Auth buttons
     googleLoginBtn: document.getElementById('googleLoginBtn'),
     anonymousLoginBtn: document.getElementById('anonymousLoginBtn'),
     logoutBtn: document.getElementById('logoutBtn'),
     
-    // User info
     userAvatar: document.getElementById('userAvatar'),
     userName: document.getElementById('userName'),
     userBalance: document.getElementById('userBalance'),
     playerAvatarSmall: document.getElementById('playerAvatarSmall'),
     
-    // Game sections
     buyInSection: document.getElementById('buyInSection'),
     bettingControls: document.getElementById('bettingControls'),
     newHandSection: document.getElementById('newHandSection'),
     bettingZone: document.getElementById('bettingZone'),
     
-    // Betting controls
     betSlider: document.getElementById('betSlider'),
     betSliderValue: document.getElementById('betSliderValue'),
     foldBtn: document.getElementById('foldBtn'),
@@ -55,12 +51,10 @@ const DOM = {
     callBtn: document.getElementById('callBtn'),
     raiseBtn: document.getElementById('raiseBtn'),
     
-    // Buy-in buttons
     buyInButtons: document.querySelectorAll('.buy-in-btn'),
     customBuyInInput: document.getElementById('customBuyIn'),
     customBuyInBtn: document.getElementById('customBuyInBtn'),
     
-    // Game display
     potAmount: document.getElementById('potAmount'),
     toCallAmount: document.getElementById('toCallAmount'),
     phaseText: document.getElementById('phaseText'),
@@ -69,10 +63,8 @@ const DOM = {
     dealerStatus: document.getElementById('dealerStatus'),
     handResult: document.getElementById('handResult'),
     
-    // New hand button
     newHandBtn: document.getElementById('newHandBtn'),
     
-    // Other
     showRulesBtn: document.getElementById('showRulesBtn'),
     closeRulesBtn: document.getElementById('closeRulesBtn'),
     resetBalanceBtn: document.getElementById('resetBalanceBtn')
@@ -82,90 +74,54 @@ const DOM = {
 // UTILITY FUNCTIONS
 // ============================================
 
-/**
- * Show loading overlay
- */
-const showLoading = () => {
+function showLoading() {
     DOM.loadingOverlay.classList.remove('hidden');
-};
+}
 
-/**
- * Hide loading overlay
- */
-const hideLoading = () => {
+function hideLoading() {
     DOM.loadingOverlay.classList.add('hidden');
-};
+}
 
-/**
- * Format currency
- * @param {number} amount 
- * @returns {string} Formatted amount
- */
-const formatCurrency = (amount) => {
+function formatCurrency(amount) {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
         minimumFractionDigits: 0,
         maximumFractionDigits: 0
     }).format(amount);
-};
+}
 
-/**
- * Display game message
- * @param {string} message - Message to display
- * @param {string} type - Message type (win, lose, push)
- */
-const showMessage = (message, type = '') => {
+function showMessage(message, type = '') {
     DOM.gameMessage.textContent = message;
     DOM.gameMessage.className = 'game-message';
     
     if (type) {
         DOM.gameMessage.classList.add(type);
     }
-};
+}
 
-/**
- * Hide game message
- */
-const hideMessage = () => {
+function hideMessage() {
     DOM.gameMessage.textContent = '';
-};
+}
 
-/**
- * Update balance display
- * @param {number} balance 
- */
-const updateBalanceDisplay = (balance) => {
+function updateBalanceDisplay(balance) {
     DOM.userBalance.textContent = formatCurrency(balance);
     
-    // Animate balance change
     DOM.userBalance.style.transform = 'scale(1.1)';
     setTimeout(() => {
         DOM.userBalance.style.transform = 'scale(1)';
     }, 200);
-};
+}
 
-/**
- * Update pot display
- * @param {number} amount 
- */
-const updatePotDisplay = (amount) => {
+function updatePotDisplay(amount) {
     DOM.potAmount.textContent = formatCurrency(amount);
-};
+}
 
-/**
- * Update "to call" amount
- * @param {number} amount 
- */
-const updateToCallDisplay = (amount) => {
+function updateToCallDisplay(amount) {
     DOM.toCallAmount.textContent = formatCurrency(amount);
-};
+}
 
-/**
- * Update player hand rank display
- * @param {Object|null} handRank 
- */
-const updateHandRankDisplay = (handRank) => {
+function updateHandRankDisplay(handRank) {
     if (handRank && handRank.name) {
         DOM.playerHandRank.textContent = handRank.name;
         DOM.handResult.textContent = `Your hand: ${handRank.name}`;
@@ -173,13 +129,9 @@ const updateHandRankDisplay = (handRank) => {
         DOM.playerHandRank.textContent = '';
         DOM.handResult.textContent = '';
     }
-};
+}
 
-/**
- * Update phase display
- * @param {string} phase 
- */
-const updatePhaseDisplay = (phase) => {
+function updatePhaseDisplay(phase) {
     const phaseNames = {
         'preflop': 'Pre-Flop',
         'flop': 'The Flop',
@@ -188,24 +140,18 @@ const updatePhaseDisplay = (phase) => {
         'showdown': 'Showdown'
     };
     DOM.phaseText.textContent = phaseNames[phase] || '';
-};
+}
 
 // ============================================
 // AUTHENTICATION
 // ============================================
 
-/**
- * Handle successful login
- * @param {Object} user - Firebase user object
- */
-const handleLoginSuccess = async (user) => {
+async function handleLoginSuccess(user) {
     AppState.currentUser = user;
     
-    // Update UI with user info
     const displayName = user.displayName || user.email || 'Player';
     DOM.userName.textContent = displayName;
     
-    // Set avatar
     if (user.photoURL) {
         DOM.userAvatar.innerHTML = `<img src="${user.photoURL}" alt="${displayName}" style="width: 100%; height: 100%; border-radius: 50%;">`;
         DOM.playerAvatarSmall.innerHTML = `<img src="${user.photoURL}" alt="${displayName}" style="width: 100%; height: 100%; border-radius: 50%;">`;
@@ -216,33 +162,36 @@ const handleLoginSuccess = async (user) => {
         DOM.playerAvatarSmall.style.color = '#1a1a1a';
     }
     
-    // Get user data from Firestore
     try {
         showLoading();
-        const { getUserData, subscribeToUserData } = await import('./firebase-config.js');
-        AppState.userData = await getUserData(user.uid);
         
-        // Subscribe to real-time updates
-        AppState.unsubscribeFromUser = subscribeToUserData(user.uid, (data) => {
-            AppState.userData = data;
-            updateBalanceDisplay(data.balance);
+        if (window.firebaseDb) {
+            AppState.userData = await window.firebaseDb.getUserData(user.uid);
             
-            // Check for bankruptcy
-            if (data.balance <= 0 && AppState.gamePhase === 'idle') {
-                DOM.bankruptcyModal.classList.remove('hidden');
-            }
-        });
+            AppState.unsubscribeFromUser = window.firebaseDb.subscribeToUserData(user.uid, (data) => {
+                AppState.userData = data;
+                updateBalanceDisplay(data.balance);
+                
+                if (data.balance <= 0 && AppState.gamePhase === 'idle') {
+                    DOM.bankruptcyModal.classList.remove('hidden');
+                }
+            });
+        } else {
+            AppState.isDemoMode = true;
+            AppState.userData = {
+                balance: 1000,
+                displayName: displayName
+            };
+        }
         
         updateBalanceDisplay(AppState.userData.balance);
         
-        // Hide login modal, show game
         DOM.loginModal.classList.add('hidden');
         DOM.gameApp.classList.remove('hidden');
         
         console.log('✅ Login successful:', displayName);
     } catch (error) {
         console.error('❌ Error fetching user data:', error);
-        // Still show the game in demo mode
         AppState.isDemoMode = true;
         AppState.userData = {
             balance: 1000,
@@ -255,13 +204,9 @@ const handleLoginSuccess = async (user) => {
     } finally {
         hideLoading();
     }
-};
+}
 
-/**
- * Handle login error
- * @param {Error} error 
- */
-const handleLoginError = (error) => {
+function handleLoginError(error) {
     console.error('❌ Login error:', error);
     hideLoading();
     
@@ -272,117 +217,102 @@ const handleLoginError = (error) => {
     } else if (error.code === 'auth/network-request-failed') {
         message = 'Network error. Please check your connection.';
     } else if (error.code === 'auth/operation-not-allowed') {
-        message = 'This sign-in method is not enabled.';
+        message = 'This sign-in method is not enabled. Please configure Firebase Authentication.';
+    } else if (error.message && error.message.includes('Firebase Auth not initialized')) {
+        message = 'Firebase not configured. Playing in Demo Mode - click "Play as Guest" to continue.';
+        // Auto-switch to demo mode
+        handleLoginSuccess({ displayName: 'Demo Player', uid: 'demo-' + Date.now() });
+        return;
     }
     
     alert(message);
-};
+}
 
-/**
- * Attempt Google sign-in
- */
-const signInWithGoogle = async () => {
+async function signInWithGoogle() {
     showLoading();
     try {
-        const { signInWithGoogle } = await import('./firebase-config.js');
-        const user = await signInWithGoogle();
-        await handleLoginSuccess(user);
+        if (window.firebaseAuth && window.firebaseAuth.isFirebaseReady()) {
+            const user = await window.firebaseAuth.signInWithGoogle();
+            await handleLoginSuccess(user);
+        } else {
+            throw new Error('Firebase Auth not initialized');
+        }
     } catch (error) {
         handleLoginError(error);
     }
-};
+}
 
-/**
- * Attempt anonymous sign-in
- */
-const signInAsGuest = async () => {
+async function signInAsGuest() {
     showLoading();
     try {
-        const { signInAsGuest } = await import('./firebase-config.js');
-        const user = await signInAsGuest();
-        await handleLoginSuccess(user);
+        if (window.firebaseAuth && window.firebaseAuth.isFirebaseReady()) {
+            const user = await window.firebaseAuth.signInAsGuest();
+            await handleLoginSuccess(user);
+        } else {
+            // Demo mode - no Firebase
+            await handleLoginSuccess({ displayName: 'Guest Player', uid: 'guest-' + Date.now() });
+        }
     } catch (error) {
         handleLoginError(error);
     }
-};
+}
 
-/**
- * Sign out user
- */
-const logoutUser = async () => {
+async function logoutUser() {
     try {
-        const { logoutUser } = await import('./firebase-config.js');
-        await logoutUser();
+        if (window.firebaseAuth && window.firebaseAuth.isFirebaseReady()) {
+            await window.firebaseAuth.logoutUser();
+        }
         
-        // Cleanup
         if (AppState.unsubscribeFromUser) {
             AppState.unsubscribeFromUser();
         }
         
-        // Reset state
         AppState.currentUser = null;
         AppState.userData = null;
         AppState.buyInAmount = 0;
         AppState.currentBet = 0;
         AppState.gamePhase = 'idle';
         
-        // Show login modal
         DOM.gameApp.classList.add('hidden');
         DOM.loginModal.classList.remove('hidden');
         
-        // Reset game board
         resetGameBoard();
         
         console.log('👋 User signed out');
     } catch (error) {
         console.error('❌ Sign-out error:', error);
     }
-};
+}
 
 // ============================================
 // BUY-IN SYSTEM
 // ============================================
 
-/**
- * Process buy-in
- * @param {number} amount - Buy-in amount
- */
-const processBuyIn = async (amount) => {
+async function processBuyIn(amount) {
     if (!AppState.userData || AppState.userData.balance < amount) {
         showMessage('Insufficient balance!', 'lose');
         return;
     }
     
-    // Deduct buy-in from balance
     AppState.userData.balance -= amount;
     updateBalanceDisplay(AppState.userData.balance);
     
-    // Save balance update
-    if (AppState.currentUser && !AppState.isDemoMode) {
-        const { updateUserBalance } = await import('./firebase-config.js');
-        await updateUserBalance(AppState.currentUser.uid, AppState.userData.balance);
+    if (AppState.currentUser && !AppState.isDemoMode && window.firebaseDb) {
+        await window.firebaseDb.updateUserBalance(AppState.currentUser.uid, AppState.userData.balance);
     }
     
-    // Start the hand
     await startHand(amount);
-};
+}
 
-/**
- * Handle buy-in button click
- * @param {Event} e 
- */
-const handleBuyInClick = (e) => {
+function handleBuyInClick(e) {
     const button = e.target.closest('.buy-in-btn');
     if (!button) return;
     
     const amount = parseInt(button.dataset.amount);
     processBuyIn(amount);
-};
+}
 
-/**
- * Handle custom buy-in
- */
-const handleCustomBuyIn = () => {
+function handleCustomBuyIn() {
     const input = DOM.customBuyInInput;
     const amount = parseInt(input.value);
     
@@ -398,64 +328,46 @@ const handleCustomBuyIn = () => {
     
     processBuyIn(amount);
     input.value = '';
-};
+}
 
 // ============================================
 // GAME ACTIONS
 // ============================================
 
-/**
- * Start a new poker hand
- * @param {number} buyIn - Buy-in amount
- */
-const startHand = async (buyIn) => {
-    // Import poker game
-    const { poker, renderPoker } = await import('./game.js');
-    
-    // Start the hand
-    const gameState = poker.startHand(buyIn);
+async function startHand(buyIn) {
+    const gameState = window.poker.startHand(buyIn);
     
     AppState.buyInAmount = buyIn;
     AppState.gamePhase = 'preflop';
     
-    // Update UI
     updatePotDisplay(gameState.pot);
-    updateToCallDisplay(poker.getCallAmount());
+    updateToCallDisplay(window.poker.getCallAmount());
     updatePhaseDisplay('preflop');
     updateHandRankDisplay(gameState.playerHandRank);
     
-    // Switch to betting controls
     DOM.buyInSection.classList.add('hidden');
     DOM.bettingControls.classList.remove('hidden');
     DOM.newHandSection.classList.add('hidden');
     DOM.bettingZone.classList.remove('hidden');
     
-    // Render cards
-    renderPoker.renderAllCards();
-    renderPoker.updatePhaseIndicator();
+    window.renderPoker.renderAllCards();
+    window.renderPoker.updatePhaseIndicator();
     
-    // Update betting controls
     updateBettingControls(gameState);
     
     console.log(`🃏 Hand started with buy-in: $${buyIn}`);
-};
+}
 
-/**
- * Update betting controls based on game state
- * @param {Object} gameState 
- */
-const updateBettingControls = (gameState) => {
+function updateBettingControls(gameState) {
     const callAmount = gameState.playerBet < gameState.dealerBet 
         ? gameState.dealerBet - gameState.playerBet 
         : 0;
     
     updateToCallDisplay(callAmount);
     
-    // Update slider max
     const maxBet = Math.min(AppState.userData.balance, callAmount + 1000);
     DOM.betSlider.max = maxBet;
     
-    // Enable/disable buttons
     const canCheck = callAmount === 0;
     const canCall = callAmount > 0 && callAmount <= AppState.userData.balance;
     const canRaise = AppState.userData.balance > callAmount;
@@ -465,145 +377,97 @@ const updateBettingControls = (gameState) => {
     DOM.raiseBtn.disabled = !canRaise || canCheck;
     DOM.foldBtn.disabled = false;
     
-    // Update slider value display
     const sliderValue = parseInt(DOM.betSlider.value);
     DOM.betSliderValue.textContent = formatCurrency(sliderValue);
-};
+}
 
-/**
- * Player folds
- */
-const playerFold = async () => {
-    const { poker, renderPoker } = await import('./game.js');
+async function playerFold() {
+    const gameState = window.poker.playerFold();
     
-    const gameState = poker.playerFold();
-    
-    // Update dealer status
     DOM.dealerStatus.textContent = '(Player Folded)';
-    
-    // Show result
     showMessage('You Folded - Dealer Wins', 'lose');
     
-    // Handle end of hand
     await handleHandEnd(gameState);
-};
+}
 
-/**
- * Player checks
- */
-const playerCheck = async () => {
-    const { poker, renderPoker } = await import('./game.js');
+async function playerCheck() {
+    const gameState = window.poker.playerCheck();
     
-    const gameState = poker.playerCheck();
-    
-    // Update UI
-    renderPoker.renderAllCards();
+    window.renderPoker.renderAllCards();
     updatePotDisplay(gameState.pot);
     updatePhaseDisplay(gameState.currentPhase);
     updateHandRankDisplay(gameState.playerHandRank);
-    renderPoker.updatePhaseIndicator();
+    window.renderPoker.updatePhaseIndicator();
     
-    // Check if hand is over
     if (gameState.gameOver) {
         await handleHandEnd(gameState);
     } else {
-        // Update betting controls for next round
         updateBettingControls(gameState);
     }
-};
+}
 
-/**
- * Player calls
- */
-const playerCall = async () => {
-    const { poker, renderPoker } = await import('./game.js');
+async function playerCall() {
+    const callAmount = window.poker.getCallAmount();
     
-    const callAmount = poker.getCallAmount();
-    
-    // Deduct from balance
     AppState.userData.balance -= callAmount;
     updateBalanceDisplay(AppState.userData.balance);
     
-    // Save to Firebase
-    if (AppState.currentUser && !AppState.isDemoMode) {
-        const { updateUserBalance } = await import('./firebase-config.js');
-        await updateUserBalance(AppState.currentUser.uid, AppState.userData.balance);
+    if (AppState.currentUser && !AppState.isDemoMode && window.firebaseDb) {
+        await window.firebaseDb.updateUserBalance(AppState.currentUser.uid, AppState.userData.balance);
     }
     
-    const gameState = poker.playerCall(callAmount);
+    const gameState = window.poker.playerCall(callAmount);
     
-    // Update UI
-    renderPoker.renderAllCards();
+    window.renderPoker.renderAllCards();
     updatePotDisplay(gameState.pot);
     updatePhaseDisplay(gameState.currentPhase);
     updateHandRankDisplay(gameState.playerHandRank);
-    renderPoker.updatePhaseIndicator();
+    window.renderPoker.updatePhaseIndicator();
     
-    // Check if hand is over
     if (gameState.gameOver) {
         await handleHandEnd(gameState);
     } else {
-        // Update betting controls for next round
         updateBettingControls(gameState);
     }
-};
+}
 
-/**
- * Player raises
- */
-const playerRaise = async () => {
-    const { poker, renderPoker } = await import('./game.js');
-    
+async function playerRaise() {
     const raiseAmount = parseInt(DOM.betSlider.value);
     const totalBet = raiseAmount;
     
-    // Deduct from balance
     AppState.userData.balance -= (totalBet - AppState.currentBet);
     updateBalanceDisplay(AppState.userData.balance);
     AppState.currentBet = totalBet;
     
-    // Save to Firebase
-    if (AppState.currentUser && !AppState.isDemoMode) {
-        const { updateUserBalance } = await import('./firebase-config.js');
-        await updateUserBalance(AppState.currentUser.uid, AppState.userData.balance);
+    if (AppState.currentUser && !AppState.isDemoMode && window.firebaseDb) {
+        await window.firebaseDb.updateUserBalance(AppState.currentUser.uid, AppState.userData.balance);
     }
     
-    const gameState = poker.playerRaise(raiseAmount);
+    const gameState = window.poker.playerRaise(raiseAmount);
     
-    // Update UI
-    renderPoker.renderAllCards();
+    window.renderPoker.renderAllCards();
     updatePotDisplay(gameState.pot);
     updatePhaseDisplay(gameState.currentPhase);
     updateHandRankDisplay(gameState.playerHandRank);
-    renderPoker.updatePhaseIndicator();
+    window.renderPoker.updatePhaseIndicator();
     
-    // Check if hand is over
     if (gameState.gameOver) {
         await handleHandEnd(gameState);
     } else {
-        // Update betting controls for next round
         updateBettingControls(gameState);
     }
-};
+}
 
-/**
- * Handle end of hand
- * @param {Object} gameState 
- */
-const handleHandEnd = async (gameState) => {
+async function handleHandEnd(gameState) {
     AppState.gamePhase = 'showdown';
     AppState.currentBet = 0;
     
-    // Reveal dealer cards
-    const { renderPoker } = await import('./game.js');
-    renderPoker.revealDealerCards();
+    window.renderPoker.revealDealerCards();
     
-    // Update dealer hand rank display
     if (gameState.dealerHandRank) {
         DOM.dealerStatus.textContent = gameState.dealerHandRank.name;
     }
     
-    // Calculate winnings
     let winnings = 0;
     let message = '';
     let messageType = '';
@@ -621,90 +485,67 @@ const handleHandEnd = async (gameState) => {
         message = 'Dealer Wins';
         messageType = 'lose';
     } else {
-        winnings = gameState.pot / 2; // Split pot
+        winnings = gameState.pot / 2;
         message = `Split Pot - ${formatCurrency(winnings)} Each`;
         messageType = 'push';
     }
     
-    // Show message
     showMessage(message, messageType);
     
-    // Update balance
     AppState.userData.balance += winnings;
     updateBalanceDisplay(AppState.userData.balance);
     
-    // Save to Firebase
-    if (AppState.currentUser && !AppState.isDemoMode) {
-        const { updateUserBalance, updateUserStats } = await import('./firebase-config.js');
-        await updateUserBalance(AppState.currentUser.uid, AppState.userData.balance);
+    if (AppState.currentUser && !AppState.isDemoMode && window.firebaseDb) {
+        await window.firebaseDb.updateUserBalance(AppState.currentUser.uid, AppState.userData.balance);
         
-        // Update stats
         const stats = {
             gamesPlayed: (AppState.userData.gamesPlayed || 0) + 1,
             totalWins: (AppState.userData.totalWins || 0) + (gameState.winner === 'player' ? 1 : 0),
             totalLosses: (AppState.userData.totalLosses || 0) + (gameState.winner === 'dealer' ? 1 : 0),
             totalPushes: (AppState.userData.totalPushes || 0) + (gameState.winner === 'tie' ? 1 : 0)
         };
-        await updateUserStats(AppState.currentUser.uid, stats);
+        await window.firebaseDb.updateUserStats(AppState.currentUser.uid, stats);
     }
     
-    // Show new hand button
     DOM.bettingControls.classList.add('hidden');
     DOM.newHandSection.classList.remove('hidden');
     
-    // Check for bankruptcy
     if (AppState.userData.balance <= 0) {
         setTimeout(() => {
             DOM.bankruptcyModal.classList.remove('hidden');
         }, 1500);
     }
-};
+}
 
-/**
- * Reset for new hand
- */
-const startNewHand = () => {
+function startNewHand() {
     AppState.gamePhase = 'idle';
     AppState.currentBet = 0;
     
-    // Hide betting controls, show buy-in
     DOM.bettingControls.classList.add('hidden');
     DOM.newHandSection.classList.add('hidden');
     DOM.bettingZone.classList.add('hidden');
     DOM.buyInSection.classList.remove('hidden');
     
-    // Reset UI
     hideMessage();
     DOM.dealerStatus.textContent = '';
     DOM.handResult.textContent = '';
     updateHandRankDisplay(null);
     updatePotDisplay(0);
     
-    // Reset game board
     resetGameBoard();
-    
-    // Update buy-in buttons based on balance
     updateBuyInButtons();
-};
+}
 
-/**
- * Update buy-in buttons based on balance
- */
-const updateBuyInButtons = () => {
+function updateBuyInButtons() {
     DOM.buyInButtons.forEach(btn => {
         const amount = parseInt(btn.dataset.amount);
         btn.disabled = amount > AppState.userData.balance;
     });
-};
+}
 
-/**
- * Reset game board
- */
-const resetGameBoard = async () => {
-    const { poker, renderPoker } = await import('./game.js');
-    poker.resetGame();
+function resetGameBoard() {
+    window.poker.resetGame();
     
-    // Clear all card slots
     const cardSlots = [
         'playerCard1', 'playerCard2',
         'dealerCard1', 'dealerCard2',
@@ -715,13 +556,11 @@ const resetGameBoard = async () => {
         const slot = document.getElementById(slotId);
         if (slot) {
             slot.innerHTML = '';
-            // Add placeholder for community cards
             if (slotId.startsWith('board')) {
                 const placeholder = document.createElement('div');
                 placeholder.className = 'card-placeholder';
                 slot.appendChild(placeholder);
             } else {
-                // Add card back for hole cards
                 const cardBack = document.createElement('div');
                 cardBack.className = 'card-back';
                 slot.appendChild(cardBack);
@@ -730,53 +569,42 @@ const resetGameBoard = async () => {
     });
     
     DOM.phaseText.textContent = '';
-};
+}
 
-/**
- * Reset balance (bankruptcy recovery)
- */
-const resetBalance = async () => {
-    const { resetUserBalance } = await import('./firebase-config.js');
-    
-    const newBalance = await resetUserBalance(AppState.currentUser.uid);
-    
-    AppState.userData.balance = newBalance;
-    updateBalanceDisplay(newBalance);
+async function resetBalance() {
+    if (window.firebaseDb) {
+        const newBalance = await window.firebaseDb.resetUserBalance(AppState.currentUser.uid);
+        AppState.userData.balance = newBalance;
+        updateBalanceDisplay(newBalance);
+    } else {
+        AppState.userData.balance = 1000;
+        updateBalanceDisplay(1000);
+    }
     
     DOM.bankruptcyModal.classList.add('hidden');
     showMessage('Balance reset! Good luck!', 'win');
     
-    // Update buy-in buttons
     updateBuyInButtons();
-};
+}
 
-/**
- * Handle bet slider change
- */
-const handleBetSliderChange = () => {
+function handleBetSliderChange() {
     const value = parseInt(DOM.betSlider.value);
     DOM.betSliderValue.textContent = formatCurrency(value);
-};
+}
 
 // ============================================
 // EVENT LISTENERS
 // ============================================
 
-/**
- * Initialize all event listeners
- */
-const initEventListeners = () => {
-    // Auth buttons
+function initEventListeners() {
     DOM.googleLoginBtn.addEventListener('click', signInWithGoogle);
     DOM.anonymousLoginBtn.addEventListener('click', signInAsGuest);
     DOM.logoutBtn.addEventListener('click', logoutUser);
     
-    // Buy-in buttons
     DOM.buyInButtons.forEach(btn => {
         btn.addEventListener('click', handleBuyInClick);
     });
     
-    // Custom buy-in
     DOM.customBuyInBtn.addEventListener('click', handleCustomBuyIn);
     DOM.customBuyInInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
@@ -784,22 +612,17 @@ const initEventListeners = () => {
         }
     });
     
-    // Betting controls
     DOM.foldBtn.addEventListener('click', playerFold);
     DOM.checkBtn.addEventListener('click', playerCheck);
     DOM.callBtn.addEventListener('click', playerCall);
     DOM.raiseBtn.addEventListener('click', playerRaise);
     
-    // Bet slider
     DOM.betSlider.addEventListener('input', handleBetSliderChange);
     
-    // New hand button
     DOM.newHandBtn.addEventListener('click', startNewHand);
     
-    // Bankruptcy
     DOM.resetBalanceBtn.addEventListener('click', resetBalance);
     
-    // Rules modal
     DOM.showRulesBtn.addEventListener('click', () => {
         DOM.rulesModal.classList.remove('hidden');
     });
@@ -807,14 +630,12 @@ const initEventListeners = () => {
         DOM.rulesModal.classList.add('hidden');
     });
     
-    // Close modal on backdrop click
     DOM.rulesModal.addEventListener('click', (e) => {
         if (e.target === DOM.rulesModal) {
             DOM.rulesModal.classList.add('hidden');
         }
     });
     
-    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (AppState.gamePhase === 'idle') return;
         
@@ -832,46 +653,48 @@ const initEventListeners = () => {
                 break;
         }
     });
-};
+}
 
-/**
- * Check initial auth state
- */
-const checkAuthState = async () => {
+async function checkAuthState() {
     try {
-        const { onAuthChange } = await import('./firebase-config.js');
-        
-        onAuthChange(async (user) => {
-            if (user) {
-                await handleLoginSuccess(user);
-            } else {
-                hideLoading();
-                DOM.loginModal.classList.remove('hidden');
-            }
-        });
+        if (window.firebaseAuth && window.firebaseAuth.isFirebaseReady()) {
+            window.firebaseAuth.onAuthChange(async (user) => {
+                if (user) {
+                    await handleLoginSuccess(user);
+                } else {
+                    hideLoading();
+                    DOM.loginModal.classList.remove('hidden');
+                }
+            });
+        } else {
+            console.log('🎮 Running in demo mode (Firebase not configured)');
+            AppState.isDemoMode = true;
+            hideLoading();
+            DOM.loginModal.classList.remove('hidden');
+        }
     } catch (error) {
         console.log('🎮 Running in demo mode (no Firebase)');
         AppState.isDemoMode = true;
         hideLoading();
         DOM.loginModal.classList.remove('hidden');
     }
-};
+}
 
 // ============================================
 // INITIALIZATION
 // ============================================
 
-/**
- * Initialize the application
- */
-const init = async () => {
+async function init() {
     console.log('🎰 CasinoSim Texas Hold\'em initializing...');
     
     initEventListeners();
-    await checkAuthState();
     
-    console.log('✅ CasinoSim ready!');
-};
+    // Wait a moment for Firebase scripts to load
+    setTimeout(async () => {
+        await checkAuthState();
+        console.log('✅ CasinoSim ready!');
+    }, 500);
+}
 
 // Start the app when DOM is ready
 if (document.readyState === 'loading') {
@@ -885,9 +708,8 @@ window.CasinoSim = {
     state: AppState,
     dom: DOM,
     refreshBalance: async () => {
-        if (AppState.currentUser) {
-            const { getUserData } = await import('./firebase-config.js');
-            AppState.userData = await getUserData(AppState.currentUser.uid);
+        if (AppState.currentUser && window.firebaseDb) {
+            AppState.userData = await window.firebaseDb.getUserData(AppState.currentUser.uid);
             updateBalanceDisplay(AppState.userData.balance);
         }
     }
