@@ -418,7 +418,7 @@ async function joinGlobalGroup() {
     
     try {
         const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
-        const groupDoc = await groupRef.get();
+        let groupDoc = await groupRef.get();
         
         if (!groupDoc.exists) {
             // Create the global group if it doesn't exist
@@ -433,6 +433,9 @@ async function joinGlobalGroup() {
                     dealerCards: []
                 }
             });
+            
+            // Re-fetch the document after creating it
+            groupDoc = await groupRef.get();
         }
         
         // Find an available seat
@@ -440,12 +443,16 @@ async function joinGlobalGroup() {
         const occupiedSeats = Object.keys(groupData?.gameState?.players || {}).map(s => parseInt(s));
         let availableSeat = -1;
         
+        console.log('Current occupied seats:', occupiedSeats);
+        
         for (let i = 0; i < 6; i++) {
             if (!occupiedSeats.includes(i)) {
                 availableSeat = i;
                 break;
             }
         }
+        
+        console.log('Available seat:', availableSeat);
         
         if (availableSeat === -1) {
             showMessage('The global room is full. Please try again later.');
