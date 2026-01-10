@@ -252,12 +252,22 @@ async function signInWithGoogle() {
     showLoading();
     try {
         if (window.firebaseAuth && window.firebaseAuth.isFirebaseReady()) {
+            console.log('Attempting Google sign-in...');
             const user = await window.firebaseAuth.signInWithGoogle();
             await handleLoginSuccess(user);
         } else {
-            throw new Error('Firebase Auth not initialized');
+            console.warn('Firebase not ready, checking again...');
+            // Wait and retry
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            if (window.firebaseAuth && window.firebaseAuth.isFirebaseReady()) {
+                const user = await window.firebaseAuth.signInWithGoogle();
+                await handleLoginSuccess(user);
+            } else {
+                throw new Error('Firebase Auth not initialized');
+            }
         }
     } catch (error) {
+        console.error('Google sign-in failed:', error);
         handleLoginError(error);
     }
 }
