@@ -725,7 +725,7 @@ function initEventListeners() {
                 if (!DOM.raiseBtn.disabled) playerRaise();
                 break;
         
-    });
+    );
 }
 
 async function checkAuthState() {
