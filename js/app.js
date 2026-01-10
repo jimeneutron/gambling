@@ -671,7 +671,7 @@ function showLoginModal() {
 
 function showGameInterface() {
     if (DOM.loginModal) DOM.loginModal.style.display = 'none';
-    if (DOM.gameApp) DOM.gameApp.style.display = 'block';
+    if (DOM.gameApp) DOM.gameApp.style.display = 'flex';
     if (DOM.logoutBtn) DOM.logoutBtn.style.display = 'block';
     
     updateBalanceDisplay();
