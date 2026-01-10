@@ -40,7 +40,7 @@ let firebaseReady = false;
 function isConfigValid() {
     // Check if API key is set properly
     return firebaseConfig.apiKey && 
-           firebaseConfig.apiKey !== "YOUR_API_KEY_HERE" && 
+           firebaseConfig.apiKey !== "AIzaSyAORZOnXK_g7lCiW2q56o8G0gdwC2JUjXE" && 
            firebaseConfig.apiKey.length > 30;
 }
 
