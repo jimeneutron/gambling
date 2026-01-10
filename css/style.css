@@ -1,4 +1,4 @@
-a/* ============================================
+/* ============================================
    CasinoSim - Texas Hold'em Poker Styles
    ============================================ */
 
@@ -362,7 +362,14 @@ body {
    Message Center
    ============================================ */
 
-
+.message-center {
+    position: absolute;
+    top: 75%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 20;
+    pointer-events: none;
+}
 
 .game-message {
     font-family: 'Playfair Display', serif;
