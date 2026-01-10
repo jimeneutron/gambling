@@ -17,7 +17,6 @@
             </div>
             <div class="modal-body">
                 <p class="disclaimer">🎮 Social Casino - Virtual Currency Only</p>
-                <p class="email-notice">You must verify your email to play</p>
                 <button id="googleLoginBtn" class="btn btn-primary btn-full">
                     <svg class="btn-icon" viewBox="0 0 24 24" width="20" height="20">
                         <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -41,8 +40,8 @@
                     <input type="password" id="passwordInput" placeholder="Password" class="auth-input">
                     <div class="auth-buttons">
                         <button id="registerBtn" class="btn btn-primary">Register</button>
-                        <button id="loginBtn" class="btn btn-secondary">                    </div>
-Login</button>
+                        <button id="loginBtn" class="btn btn-secondary">Login</button>
+                    </div>
                     <button id="sendVerificationBtn" class="btn btn-small btn-link">Resend verification email</button>
                 </div>
             </div>
@@ -59,30 +58,46 @@ Login</button>
             <div class="user-section">
                 <div id="userAvatar" class="user-avatar"></div>
                 <span id="userName" class="user-name">Player</span>
+                <span id="gameModeBadge" class="game-mode-badge">🤖 AI Dealer</span>
             </div>
             <div class="balance-section">
                 <span class="balance-label">Chips</span>
                 <span id="userBalance" class="balance-amount">$0</span>
             </div>
-            <button id="logoutBtn" class="btn btn-small btn-logout">Logout</button>
+            <div class="top-bar-buttons">
+                <button id="logoutBtn" class="btn btn-small btn-logout">Logout</button>
+            </div>
         </header>
 
         <!-- Poker Table -->
         <main class="poker-table">
+            <!-- Opponent Seats (for multiplayer) -->
+            <div id="opponentSeats" class="opponent-seats">
+                <!-- Opponent seats will be dynamically added here -->
+            </div>
+
+            <!-- Players List Panel -->
+            <div id="playersList" class="players-list-panel">
+                <!-- Players will be listed here -->
+            </div>
+
             <!-- Dealer Section -->
             <section class="dealer-section">
                 <div class="player-info dealer-info">
                     <div class="player-avatar dealer-avatar">🤖</div>
                     <div class="player-details">
-                        <span class="player-name">Dealer</span>
+                        <span class="player-name">AI Dealer</span>
                         <span id="dealerStatus" class="player-status"></span>
+                    </div>
+                    <div id="dealerThinking" class="thinking-indicator hidden">
+                        <span class="thinking-dots">...</span>
                     </div>
                 </div>
                 <div class="hole-cards dealer-hole-cards">
-                    <div class="hole-card-slot" id="dealerCard1">
+                    <div class="hole-card-slot" id="dealerCard0">
                         <div class="card-back"></div>
                     </div>
-                    <div class="hole-card-slot" id="dealerCard2">
+                    <div class="hole-card-slot" id="dealerCard1">
                         <div class="card-back"></div>
                     </div>
                 </div>
@@ -96,19 +111,19 @@ Login</button>
                 </div>
                 
                 <div class="community-cards">
-                    <div class="community-slot" id="boardCard1">
+                    <div class="community-slot" id="communityCard0">
                         <div class="card-placeholder"></div>
                     </div>
-                    <div class="community-slot" id="boardCard2">
+                    <div class="community-slot" id="communityCard1">
                         <div class="card-placeholder"></div>
                     </div>
-                    <div class="community-slot" id="boardCard3">
+                    <div class="community-slot" id="communityCard2">
                         <div class="card-placeholder"></div>
                     </div>
-                    <div class="community-slot" id="boardCard4">
+                    <div class="community-slot" id="communityCard3">
                         <div class="card-placeholder"></div>
                     </div>
-                    <div class="community-slot" id="boardCard5">
+                    <div class="community-slot" id="communityCard4">
                         <div class="card-placeholder"></div>
                     </div>
                 </div>
@@ -119,6 +134,10 @@ Login</button>
 
                 <div id="messageCenter" class="message-center">
                     <div id="gameMessage" class="game-message"></div>
+                </div>
+
+                <div id="turnIndicator" class="turn-indicator hidden">
+                    <span id="turnText"></span>
                 </div>
             </section>
 
@@ -135,10 +154,10 @@ Login</button>
                 </div>
                 
                 <div class="hole-cards player-hole-cards" id="playerHoleCards">
-                    <div class="hole-card-slot" id="playerCard1">
+                    <div class="hole-card-slot" id="playerCard0">
                         <div class="card-placeholder"></div>
                     </div>
-                    <div class="hole-card-slot" id="playerCard2">
+                    <div class="hole-card-slot" id="playerCard1">
                         <div class="card-placeholder"></div>
                     </div>
                 </div>
@@ -195,6 +214,12 @@ Login</button>
                     <button id="raiseBtn" class="btn btn-action btn-raise" disabled>
                         Raise
                     </button>
+                    <button id="allInBtn" class="btn btn-action btn-allin" disabled>
+                        All-In
+                    </button>
+                </div>
+                <div class="raise-input-section">
+                    <input type="number" id="raiseInput" placeholder="Amount" min="0">
                 </div>
             </div>
 
@@ -233,6 +258,12 @@ Login</button>
                         <h3>Objective</h3>
                         <p>Make the best 5-card poker hand using your 2 hole cards and the 5 community cards.</p>
                         
+                        <h3>AI Dealer</h3>
+                        <p>The AI dealer plays strategically with hand evaluation, pot odds calculation, and occasional bluffing. Difficulty varies based on hand strength.</p>
+                        
+                        <h3>Multiplayer</h3>
+                        <p>All players automatically join the global poker room. Compete against other players and the AI dealer in real-time.</p>
+                        
                         <h3>Hand Rankings (Highest to Lowest)</h3>
                         <ul class="hand-rankings">
                             <li><strong>Royal Flush</strong> - A, K, Q, J, 10 of same suit</li>
@@ -270,11 +301,11 @@ Login</button>
 
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay hidden">
-        <div class="spinner"></p>
+        <div class="spinner"></div>
+        <p>Loading...</p>
     </div>
 
     <!-- Firebase SDK -->
-    <!-- Using compat versions for better browser compatibility -->
     <script src="js/firebase-config.js"></script>
     <script src="js/game.js"></script>
     <script src="js/app.js"></script>
