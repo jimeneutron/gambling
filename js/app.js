@@ -657,8 +657,14 @@ function updatePlayersList(players) {
 // ============================================
 function showLoginModal() {
     // Safely show login modal
-    if (DOM.loginModal) DOM.loginModal.style.display = 'flex';
-    if (DOM.gameApp) DOM.gameApp.style.display = 'none';
+    if (DOM.loginModal) {
+        DOM.loginModal.classList.remove('hidden');
+        DOM.loginModal.style.display = 'flex';
+    }
+    if (DOM.gameApp) {
+        DOM.gameApp.classList.add('hidden');
+        DOM.gameApp.style.display = 'none';
+    }
     
     // Clear form fields safely
     if (DOM.authError) {
@@ -670,8 +676,57 @@ function showLoginModal() {
 }
 
 function showGameInterface() {
-    if (DOM.loginModal) DOM.loginModal.style.display = 'none';
-    if (DOM.gameApp) DOM.gameApp.style.display = 'flex';
+    console.log('showGameInterface called');
+    
+    // Hide login modal completely with aggressive styling
+    if (DOM.loginModal) {
+        console.log('Found loginModal, hiding it');
+        DOM.loginModal.classList.add('hidden');
+        DOM.loginModal.style.display = 'none !important';
+        DOM.loginModal.style.visibility = 'hidden';
+        DOM.loginModal.style.opacity = '0';
+        DOM.loginModal.style.pointerEvents = 'none';
+        DOM.loginModal.style.zIndex = '-1';
+    } else {
+        console.log('loginModal not found');
+    }
+    
+    // Show game app with aggressive styling
+    if (DOM.gameApp) {
+        console.log('Found gameApp, showing it');
+        DOM.gameApp.classList.remove('hidden');
+        DOM.gameApp.style.display = 'flex !important';
+        DOM.gameApp.style.visibility = 'visible';
+        DOM.gameApp.style.opacity = '1';
+        DOM.gameApp.style.zIndex = '1';
+        
+        // Force show all game elements for debugging
+        const gameContainer = document.querySelector('.game-container');
+        if (gameContainer) {
+            gameContainer.style.display = 'flex !important';
+        }
+        
+        const pokerTable = document.querySelector('.poker-table');
+        if (pokerTable) {
+            pokerTable.style.backgroundColor = '#8B0000'; // Red background for visibility
+            pokerTable.style.minHeight = '400px';
+            console.log('Set poker-table to red background for debugging');
+        }
+        
+        // Log computed styles for debugging
+        setTimeout(() => {
+            const computedStyle = window.getComputedStyle(DOM.gameApp);
+            console.log('gameApp display:', computedStyle.display);
+            console.log('gameApp height:', computedStyle.height);
+            console.log('gameApp visibility:', computedStyle.visibility);
+            console.log('gameApp opacity:', computedStyle.opacity);
+            console.log('gameApp actual visibility:', DOM.gameApp.style.visibility);
+            console.log('gameApp actual display:', DOM.gameApp.style.display);
+        }, 100);
+    } else {
+        console.log('gameApp not found');
+    }
+    
     if (DOM.logoutBtn) DOM.logoutBtn.style.display = 'block';
     
     updateBalanceDisplay();
