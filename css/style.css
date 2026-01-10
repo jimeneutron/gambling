@@ -59,12 +59,20 @@ body {
    ============================================ */
 
 .game-container {
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     height: 100vh;
     width: 100vw;
     background: 
         radial-gradient(ellipse at center, var(--poker-green-light) 0%, var(--poker-green) 50%, var(--poker-green-dark) 100%);
+}
+
+.game-container.hidden {
+    display: none !important;
+}
+
+.game-container:not(.hidden) {
+    display: flex !important;
 }
 
 /* ============================================
@@ -147,12 +155,28 @@ body {
     flex-direction: column;
     position: relative;
     overflow: hidden;
-    background: 
-        radial-gradient(ellipse at center, rgba(53, 101, 77, 0.3) 0%, rgba(53, 101, 77, 0.5) 50%, rgba(30, 77, 53, 0.7) 100%),
-        url('../user_input_files/tablebackground.png') center/cover no-repeat;
+    background-color: #35654d;
+    background-image: 
+        radial-gradient(ellipse at center, transparent 30%, rgba(0, 0, 0, 0.3) 70%, rgba(0, 0, 0, 0.5) 100%),
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 20px,
+            rgba(0, 0, 0, 0.05) 20px,
+            rgba(0, 0, 0, 0.05) 21px
+        ),
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 20px,
+            rgba(0, 0, 0, 0.05) 20px,
+            rgba(0, 0, 0, 0.05) 21px
+        );
+    border: 3px solid #FFD700;
     border-radius: 20px;
     margin: 10px;
     min-height: 300px;
+    box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.3), 0 0 20px rgba(0, 0, 0, 0.5);
 }
 
 /* Felt texture overlay */
