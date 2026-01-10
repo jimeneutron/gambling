@@ -148,11 +148,11 @@ body {
     position: relative;
     overflow: hidden;
     background: 
-        var(--bg-overlay),
+        radial-gradient(ellipse at center, rgba(53, 101, 77, 0.3) 0%, rgba(53, 101, 77, 0.5) 50%, rgba(30, 77, 53, 0.7) 100%),
         url('../user_input_files/tablebackground.png') center/cover no-repeat;
     border-radius: 20px;
     margin: 10px;
-    max-height: calc(100vh - 160px);
+    min-height: 300px;
 }
 
 /* Felt texture overlay */
