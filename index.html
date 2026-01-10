@@ -66,6 +66,7 @@
                 <span id="userBalance" class="balance-amount">$0</span>
             </div>
             <div class="top-bar-buttons">
+                <button id="resetRoomBtn" class="btn btn-small btn-logout" title="Clear all players and reset room">Reset Room</button>
                 <button id="logoutBtn" class="btn btn-small btn-logout">Logout</button>
             </div>
         </header>
@@ -174,6 +175,13 @@
                 </div>
             </div>
         </main>
+
+        <!-- Dealer Start Game Button (shown only to dealer in waiting phase) -->
+        <div id="startGameContainer" class="start-game-container hidden">
+            <button id="startGameBtn" class="btn btn-primary btn-large start-game-btn">
+                Start Hand (You are Dealer)
+            </button>
+        </div>
 
         <!-- Control Panel -->
         <footer class="control-panel">
