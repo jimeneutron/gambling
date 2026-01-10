@@ -1,74 +1,6 @@
 /* ============================================
    CasinoSim - Texas Hold'em Poker Styles
    ============================================ */
-.email-notice {
-    font-size: 0.85rem;
-    color: #f39c12;
-    margin-bottom: 1rem;
-    text-align: center;
-}
-
-.divider {
-    display: flex;
-    align-items: center;
-    margin: 1rem 0;
-    color: #666;
-}
-
-.divider::before,
-.divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: #444;
-}
-
-.divider span {
-    padding: 0 1rem;
-    font-size: 0.85rem;
-}
-
-.email-auth-section {
-    margin-top: 1rem;
-    padding: 1rem;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-}
-
-.auth-input {
-    width: 100%;
-    padding: 0.75rem;
-    margin-bottom: 0.75rem;
-    border: 1px solid #444;
-    border-radius: 6px;
-    background: #1a1a1a;
-    color: #fff;
-    font-size: 1rem;
-}
-
-.auth-buttons {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-}
-
-.auth-buttons .btn {
-    flex: 1;
-}
-
-.btn-link {
-    background: none !important;
-    border: none !important;
-    color: #3498db !important;
-    font-size: 0.85rem;
-    cursor: pointer;
-    text-decoration: underline;
-    padding: 0.5rem !important;
-}
-
-.btn-link:hover {
-    color: #5dade2 !important;
-}
 
 /* CSS Variables */
 :root {
@@ -362,6 +294,8 @@ body {
     border: 2px solid var(--accent-gold);
     margin-bottom: 15px;
     min-width: 140px;
+    position: relative;
+    z-index: 6;
 }
 
 .pot-label {
@@ -385,6 +319,8 @@ body {
     gap: 6px;
     justify-content: center;
     margin-bottom: 15px;
+    position: relative;
+    z-index: 6;
 }
 
 .community-slot {
@@ -404,10 +340,10 @@ body {
 /* Phase Indicator */
 .phase-indicator {
     position: absolute;
-    top: 50%;
+    top: 25%;
     left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 10;
+    transform: translateX(-50%);
+    z-index: 8;
     pointer-events: none;
 }
 
@@ -428,7 +364,7 @@ body {
 
 .message-center {
     position: absolute;
-    top: 50%;
+    top: 60%;
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: 20;
@@ -465,10 +401,10 @@ body {
 
 .betting-zone {
     position: absolute;
-    bottom: 35%;
+    bottom: 25%;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 10;
+    z-index: 15;
 }
 
 .current-bet-display {
@@ -1327,73 +1263,4 @@ body {
     .poker-table {
         background: white !important;
     }
-}
-/* Email Auth Styles */
-.email-notice {
-    font-size: 0.85rem;
-    color: #f39c12;
-    margin-bottom: 1rem;
-    text-align: center;
-}
-
-.divider {
-    display: flex;
-    align-items: center;
-    margin: 1rem 0;
-    color: #666;
-}
-
-.divider::before,
-.divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: #444;
-}
-
-.divider span {
-    padding: 0 1rem;
-    font-size: 0.85rem;
-}
-
-.email-auth-section {
-    margin-top: 1rem;
-    padding: 1rem;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-}
-
-.auth-input {
-    width: 100%;
-    padding: 0.75rem;
-    margin-bottom: 0.75rem;
-    border: 1px solid #444;
-    border-radius: 6px;
-    background: #1a1a1a;
-    color: #fff;
-    font-size: 1rem;
-}
-
-.auth-buttons {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-}
-
-.auth-buttons .btn {
-    flex: 1;
-}
-
-.btn-link {
-    background: none !important;
-    border: none !important;
-    color: #3498db !important;
-    font-size: 0.85rem;
-    cursor: pointer;
-    text-decoration: underline;
-    padding: 0.5rem !important;
-}
-
-.btn-link:hover {
-    color: #5dade2 !important;
 }
