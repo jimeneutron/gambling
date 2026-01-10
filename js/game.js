@@ -1,43 +1,16 @@
 /**
- * CasinoSim - Texas Hold'em Poker Game Logic
- * ============================================
- * Complete poker engine with AI dealer, hand evaluation, betting, and multiplayer support
+ * Poker Game Engine
+ * Texas Hold'em Poker with AI Dealer and Multiplayer Support
  */
 
-// ============================================
-// CARD DEFINITIONS
-// ============================================
-
+// Card Constants
 const SUITS = ['♠', '♥', '♦', '♣'];
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-
-const SUIT_NAMES = {
-    '♠': 'spades',
-    '♥': 'hearts',
-    '♦': 'diamonds',
-    '♣': 'clubs'
-};
 
 const RANK_VALUES = {
     '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
     '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14
 };
-
-const RANK_DISPLAY = {
-    '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7',
-    '8': '8', '9': '9', '10': '10', 'J': 'J', 'Q': 'Q', 'K': 'K', 'A': 'A'
-};
-
-const SUIT_COLORS = {
-    '♠': 'black',
-    '♣': 'black',
-    '♥': 'red',
-    '♦': 'red'
-};
-
-// ============================================
-// HAND RANKINGS
-// ============================================
 
 const HAND_RANKINGS = {
     ROYAL_FLUSH: 10,
@@ -65,26 +38,7 @@ const HAND_NAMES = {
     1: 'High Card'
 };
 
-// ============================================
-// GAME STATE
-// ============================================
-
-let gameState = {
-    deck: [],
-    players: {},  // Multiple players supported
-    communityCards: [],
-    pot: 0,
-    currentPlayerIndex: 0,
-    currentPhase: 'idle',
-    gameOver: false,
-    winner: null,
-    dealerHandRank: null,
-    lastAction: null,
-    isMultiplayer: false,
-    roomId: null
-};
-
-// Default single-player state
+// Single Player State
 let singlePlayerState = {
     deck: [],
     playerHoleCards: [],
@@ -101,70 +55,393 @@ let singlePlayerState = {
     playerFolded: false
 };
 
-// ============================================
-// AI DEALER CONFIGURATION
-// ============================================
-
+// AI Configuration
 const AI_CONFIG = {
-    aggression: 0.7,        // 0-1, higher = more aggressive
-    bluffChance: 0.15,      // 15% chance to bluff with weak hands
-    foldThreshold: 0.3,     // Fold if hand strength below this
-    raiseThreshold: 0.7,    // Raise if hand strength above this
-    callFrequency: 0.85,    // Frequency of calling vs raising
-    minBetMultiplier: 0.5,  // Min bet as % of pot
-    maxBetMultiplier: 2.0,  // Max bet as % of pot
-    reactionDelay: 800      // AI think time in ms
+    aggression: 0.7,
+    bluffChance: 0.15,
+    foldThreshold: 0.3,
+    raiseThreshold: 0.7
 };
 
-// ============================================
-// DECK MANAGEMENT
-// ============================================
-
-function createDeck() {
-    const deck = [];
+// PokerGame Class
+class PokerGame {
+    constructor(options = {}) {
+        this.isMultiplayer = options.isMultiplayer || false;
+        this.groupId = options.groupId || null;
+        this.onStateChange = options.onStateChange || (() => {});
+        this.onActionRequired = options.onActionRequired || (() => {});
+        this.onGameEnd = options.onGameEnd || (() => {});
+        this.onMessage = options.onMessage || (() => {});
+        
+        this.currentState = null;
+    }
     
-    for (const suit of SUITS) {
-        for (const rank of RANKS) {
-            deck.push({
-                suit,
-                rank,
-                value: RANK_VALUES[rank],
-                suitName: SUIT_NAMES[suit],
-                color: SUIT_COLORS[suit]
-            });
+    // Update game state from Firestore (multiplayer)
+    updateState(state) {
+        this.currentState = state;
+        
+        if (this.onStateChange) {
+            this.onStateChange(state);
+        }
+        
+        // Check if action is required
+        if (state.currentPlayerSeat !== undefined && this.isMultiplayer) {
+            const players = state.players || {};
+            const currentPlayerKey = state.currentPlayerSeat.toString();
+            const currentPlayer = players[currentPlayerKey];
+            
+            if (currentPlayer && !currentPlayer.folded && !currentPlayer.isAllIn) {
+                if (this.onActionRequired) {
+                    this.onActionRequired(state);
+                }
+            }
         }
     }
     
+    // Handle player actions
+    playerAction(action, amount = 0) {
+        if (this.isMultiplayer) {
+            // Multiplayer actions are handled through Firestore
+            if (this.onMessage) {
+                this.onMessage(`${action}${amount > 0 ? ' $' + amount : ''}`);
+            }
+        } else {
+            // Single player actions
+            this.handleSinglePlayerAction(action, amount);
+        }
+    }
+    
+    // Start the game
+    start() {
+        if (this.isMultiplayer) return;
+        
+        // Reset and start new hand
+        resetSinglePlayerState();
+        startHand(100); // $100 buy-in
+        
+        // Transform state for UI
+        const transformedState = this.transformSinglePlayerState();
+        this.currentState = transformedState;
+        
+        if (this.onStateChange) {
+            this.onStateChange(transformedState);
+        }
+    }
+    
+    // Start a new hand
+    startNewHand() {
+        if (this.isMultiplayer) return;
+        
+        resetSinglePlayerState();
+        startHand(100);
+        
+        const transformedState = this.transformSinglePlayerState();
+        this.currentState = transformedState;
+        
+        if (this.onStateChange) {
+            this.onStateChange(transformedState);
+        }
+    }
+    
+    // Cleanup
+    cleanup() {
+        this.currentState = null;
+    }
+    
+    // Transform single player state to UI format
+    transformSinglePlayerState() {
+        return {
+            phase: singlePlayerState.currentPhase,
+            pot: singlePlayerState.pot,
+            communityCards: singlePlayerState.communityCards,
+            playerCards: singlePlayerState.playerHoleCards,
+            dealerCards: singlePlayerState.dealerHoleCards,
+            canCheck: singlePlayerState.playerBet === singlePlayerState.dealerBet,
+            currentBet: singlePlayerState.playerBet,
+            minRaise: getMinRaise(),
+            playerBalance: window.App?.currentUser?.balance || 1000,
+            currentPlayer: 'You'
+        };
+    }
+    
+    // Handle single player actions
+    handleSinglePlayerAction(action, amount) {
+        switch(action) {
+            case 'fold':
+                playerFold();
+                break;
+            case 'check':
+                playerCheck();
+                break;
+            case 'call':
+                playerCall(getCallAmount());
+                break;
+            case 'raise':
+                playerRaise(amount);
+                break;
+            case 'allin':
+                playerRaise(window.App?.currentUser?.balance || 1000);
+                break;
+        }
+        
+        // Transform and notify
+        const transformedState = this.transformSinglePlayerState();
+        this.currentState = transformedState;
+        
+        if (this.onStateChange) {
+            this.onStateChange(transformedState);
+        }
+        
+        // Check if game ended
+        if (singlePlayerState.gameOver) {
+            if (this.onGameEnd) {
+                this.onGameEnd({
+                    winner: singlePlayerState.winner,
+                    amount: singlePlayerState.pot / 2,
+                    handDescription: singlePlayerState.playerHandRank?.name
+                });
+            }
+        } else if (singlePlayerState.currentPhase !== 'idle' && !singlePlayerState.playerFolded) {
+            if (this.onActionRequired) {
+                this.onActionRequired(transformedState);
+            }
+        }
+    }
+}
+
+// Single Player Game Functions
+function resetSinglePlayerState() {
+    singlePlayerState = {
+        deck: [],
+        playerHoleCards: [],
+        dealerHoleCards: [],
+        communityCards: [],
+        pot: 0,
+        playerBet: 0,
+        dealerBet: 0,
+        currentPhase: 'idle',
+        gameOver: false,
+        winner: null,
+        playerHandRank: null,
+        dealerHandRank: null,
+        playerFolded: false
+    };
+}
+
+function createDeck() {
+    const deck = [];
+    for (const suit of SUITS) {
+        for (const rank of RANKS) {
+            deck.push({ suit, rank, value: RANK_VALUES[rank] });
+        }
+    }
     return deck;
 }
 
 function shuffleDeck(deck) {
     const shuffled = [...deck];
-    
     for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    
     return shuffled;
 }
 
 function getNewShuffledDeck() {
-    const deck = createDeck();
-    return shuffleDeck(deck);
+    return shuffleDeck(createDeck());
 }
 
 function drawCard() {
-    if (gameState.deck.length === 0) {
-        gameState.deck = getNewShuffledDeck();
+    if (singlePlayerState.deck.length === 0) {
+        singlePlayerState.deck = getNewShuffledDeck();
     }
-    return gameState.deck.pop();
+    return singlePlayerState.deck.pop();
 }
 
-// ============================================
-// HAND EVALUATION
-// ============================================
+function startHand(buyIn) {
+    singlePlayerState.deck = getNewShuffledDeck();
+    singlePlayerState.playerHoleCards = [];
+    singlePlayerState.dealerHoleCards = [];
+    singlePlayerState.communityCards = [];
+    singlePlayerState.pot = buyIn * 2;
+    singlePlayerState.playerBet = buyIn;
+    singlePlayerState.dealerBet = buyIn;
+    singlePlayerState.currentPhase = 'preflop';
+    singlePlayerState.gameOver = false;
+    singlePlayerState.winner = null;
+    singlePlayerState.playerFolded = false;
+    
+    // Deal hole cards
+    singlePlayerState.playerHoleCards.push(drawCard());
+    singlePlayerState.dealerHoleCards.push(drawCard());
+    singlePlayerState.playerHoleCards.push(drawCard());
+    singlePlayerState.dealerHoleCards.push(drawCard());
+    
+    singlePlayerState.playerHandRank = evaluatePlayerHand();
+}
 
+function dealFlop() {
+    drawCard(); // Burn card
+    singlePlayerState.communityCards.push(drawCard());
+    singlePlayerState.communityCards.push(drawCard());
+    singlePlayerState.communityCards.push(drawCard());
+    singlePlayerState.currentPhase = 'flop';
+    singlePlayerState.playerHandRank = evaluatePlayerHand();
+}
+
+function dealTurn() {
+    drawCard(); // Burn card
+    singlePlayerState.communityCards.push(drawCard());
+    singlePlayerState.currentPhase = 'turn';
+    singlePlayerState.playerHandRank = evaluatePlayerHand();
+}
+
+function dealRiver() {
+    drawCard(); // Burn card
+    singlePlayerState.communityCards.push(drawCard());
+    singlePlayerState.currentPhase = 'river';
+    singlePlayerState.playerHandRank = evaluatePlayerHand();
+}
+
+function showdown() {
+    singlePlayerState.currentPhase = 'showdown';
+    
+    const playerEval = evaluatePlayerHand();
+    const dealerEval = evaluateDealerHand();
+    
+    singlePlayerState.playerHandRank = playerEval;
+    singlePlayerState.dealerHandRank = dealerEval;
+    
+    if (isBetterHand(playerEval, dealerEval)) {
+        singlePlayerState.winner = 'player';
+    } else if (isBetterHand(dealerEval, playerEval)) {
+        singlePlayerState.winner = 'dealer';
+    } else {
+        singlePlayerState.winner = 'split';
+    }
+    
+    singlePlayerState.gameOver = true;
+}
+
+function playerFold() {
+    singlePlayerState.playerFolded = true;
+    singlePlayerState.winner = 'dealer';
+    singlePlayerState.gameOver = true;
+    singlePlayerState.currentPhase = 'showdown';
+}
+
+function playerCheck() {
+    advanceBetting();
+}
+
+function playerCall(amount) {
+    singlePlayerState.playerBet += amount;
+    singlePlayerState.pot += amount;
+    advanceBetting();
+}
+
+function playerRaise(amount) {
+    singlePlayerState.playerBet = amount;
+    singlePlayerState.pot += (amount - singlePlayerState.playerBet);
+    advanceBetting();
+}
+
+function getCallAmount() {
+    return singlePlayerState.dealerBet - singlePlayerState.playerBet;
+}
+
+function getMinRaise() {
+    const callAmount = getCallAmount();
+    return callAmount + singlePlayerState.playerBet;
+}
+
+function advanceBetting() {
+    // Get dealer action using AI
+    const dealerAction = getDealerAIAction(
+        singlePlayerState.dealerHoleCards,
+        singlePlayerState.communityCards,
+        singlePlayerState.pot,
+        singlePlayerState.dealerBet - singlePlayerState.playerBet,
+        getMinRaise(),
+        singlePlayerState.playerBet + singlePlayerState.pot
+    );
+    
+    switch(singlePlayerState.currentPhase) {
+        case 'preflop':
+            if (dealerAction.action === 'fold') {
+                singlePlayerState.winner = 'player';
+                singlePlayerState.gameOver = true;
+            } else if (dealerAction.action === 'raise') {
+                singlePlayerState.dealerBet = dealerAction.amount;
+                singlePlayerState.pot += (dealerAction.amount - singlePlayerState.playerBet);
+                singlePlayerState.playerBet = dealerAction.amount;
+            } else if (dealerAction.action === 'call') {
+                const callAmount = singlePlayerState.dealerBet - singlePlayerState.playerBet;
+                singlePlayerState.dealerBet += callAmount;
+                singlePlayerState.pot += callAmount;
+                dealFlop();
+            } else {
+                dealFlop();
+            }
+            break;
+            
+        case 'flop':
+            if (dealerAction.action === 'fold') {
+                singlePlayerState.winner = 'player';
+                singlePlayerState.gameOver = true;
+            } else if (dealerAction.action === 'raise') {
+                singlePlayerState.dealerBet = dealerAction.amount;
+                singlePlayerState.pot += (dealerAction.amount - singlePlayerState.playerBet);
+                singlePlayerState.playerBet = dealerAction.amount;
+            } else if (dealerAction.action === 'call') {
+                const callAmount = singlePlayerState.dealerBet - singlePlayerState.playerBet;
+                singlePlayerState.dealerBet += callAmount;
+                singlePlayerState.pot += callAmount;
+                dealTurn();
+            } else {
+                dealTurn();
+            }
+            break;
+            
+        case 'turn':
+            if (dealerAction.action === 'fold') {
+                singlePlayerState.winner = 'player';
+                singlePlayerState.gameOver = true;
+            } else if (dealerAction.action === 'raise') {
+                singlePlayerState.dealerBet = dealerAction.amount;
+                singlePlayerState.pot += (dealerAction.amount - singlePlayerState.playerBet);
+                singlePlayerState.playerBet = dealerAction.amount;
+            } else if (dealerAction.action === 'call') {
+                const callAmount = singlePlayerState.dealerBet - singlePlayerState.playerBet;
+                singlePlayerState.dealerBet += callAmount;
+                singlePlayerState.pot += callAmount;
+                dealRiver();
+            } else {
+                dealRiver();
+            }
+            break;
+            
+        case 'river':
+            if (dealerAction.action === 'fold') {
+                singlePlayerState.winner = 'player';
+                singlePlayerState.gameOver = true;
+            } else if (dealerAction.action === 'raise') {
+                singlePlayerState.dealerBet = dealerAction.amount;
+                singlePlayerState.pot += (dealerAction.amount - singlePlayerState.playerBet);
+                singlePlayerState.playerBet = dealerAction.amount;
+            } else if (dealerAction.action === 'call') {
+                const callAmount = singlePlayerState.dealerBet - singlePlayerState.playerBet;
+                singlePlayerState.dealerBet += callAmount;
+                singlePlayerState.pot += callAmount;
+                showdown();
+            } else {
+                showdown();
+            }
+            break;
+    }
+}
+
+// Hand Evaluation
 function getCardValues(cards) {
     return cards.map(c => c.value).sort((a, b) => a - b);
 }
@@ -181,6 +458,7 @@ function isStraight(cards) {
     const values = getCardValues(cards);
     const uniqueValues = [...new Set(values)];
     
+    // Wheel check (A-2-3-4-5)
     if (uniqueValues.includes(14) && uniqueValues.includes(2) && 
         uniqueValues.includes(3) && uniqueValues.includes(4) && uniqueValues.includes(5)) {
         return true;
@@ -359,7 +637,6 @@ function getCombinations(array, k) {
             results.push(head.concat(tailCombo));
         }
     }
-    
     return results;
 }
 
@@ -371,7 +648,6 @@ function findBestHand(allCards) {
     
     for (const combo of combinations) {
         const evaluation = evaluateHand(combo);
-        
         if (bestEvaluation === null || isBetterHand(evaluation, bestEvaluation)) {
             bestEvaluation = evaluation;
             bestHand = combo;
@@ -399,13 +675,20 @@ function isBetterHand(hand1, hand2) {
     return false;
 }
 
-// ============================================
-// AI DEALER LOGIC
-// ============================================
+function evaluatePlayerHand() {
+    const allCards = [...singlePlayerState.playerHoleCards, ...singlePlayerState.communityCards];
+    return findBestHand(allCards);
+}
 
+function evaluateDealerHand() {
+    const allCards = [...singlePlayerState.dealerHoleCards, ...singlePlayerState.communityCards];
+    return findBestHand(allCards);
+}
+
+// AI Dealer
 function getHandStrength(holeCards, communityCards) {
     if (communityCards.length === 0) {
-        // Pre-flop hand strength
+        // Pre-flop strength
         const rank1 = holeCards[0].value;
         const rank2 = holeCards[1].value;
         const suited = holeCards[0].suit === holeCards[1].suit;
@@ -414,15 +697,15 @@ function getHandStrength(holeCards, communityCards) {
         
         // Pocket pairs
         if (rank1 === rank2) {
-            if (rank1 >= 12) strength = 0.95; // AA, KK, QQ
-            else if (rank1 >= 10) strength = 0.85; // JJ, TT
-            else if (rank1 >= 8) strength = 0.75; // 99, 88
+            if (rank1 >= 12) strength = 0.95;
+            else if (rank1 >= 10) strength = 0.85;
+            else if (rank1 >= 8) strength = 0.75;
             else strength = 0.6;
         }
         // Suited connectors
         else if (suited && Math.abs(rank1 - rank2) <= 4) {
-            if (rank1 >= 11 || rank2 >= 11) strength = 0.7; // AK, AQ, KQ suited
-            else if (rank1 >= 9 || rank2 >= 9) strength = 0.55; // Jx, Tx suited
+            if (rank1 >= 11 || rank2 >= 11) strength = 0.7;
+            else if (rank1 >= 9 || rank2 >= 9) strength = 0.55;
             else strength = 0.45;
         }
         // High cards
@@ -440,17 +723,12 @@ function getHandStrength(holeCards, communityCards) {
         return strength;
     }
     
-    // Post-flop hand strength using actual evaluation
+    // Post-flop strength
     const allCards = [...holeCards, ...communityCards];
     const bestHand = findBestHand(allCards);
-    
-    // Convert hand rank to strength (0-1)
-    const baseStrength = (bestHand.rank - 1) / 9; // Normalize to 0-1
-    
-    // Add value-based strength
+    const baseStrength = (bestHand.rank - 1) / 9;
     const valueBonus = bestHand.value / 14 * 0.2;
     
-    // Consider kickers for pairs
     let kickerBonus = 0;
     if (bestHand.kickers && bestHand.kickers.length > 0) {
         kickerBonus = Math.min(bestHand.kickers[0] / 14 * 0.1, 0.1);
@@ -462,22 +740,16 @@ function getHandStrength(holeCards, communityCards) {
 function shouldDealerFold(holeCards, communityCards, pot, currentBet) {
     const strength = getHandStrength(holeCards, communityCards);
     
-    // Always call if checking (no bet to match)
     if (currentBet === 0) return false;
     
-    // Calculate pot odds
     const callAmount = currentBet;
     const potOdds = callAmount / (pot + callAmount);
     
-    // If pot odds are favorable, call more often
     if (potOdds < 0.2) {
         return strength < AI_CONFIG.foldThreshold * 0.7;
     }
     
-    // Bluff detection - sometimes fold strong hands to trick player
-    if (strength > 0.8 && Math.random() < 0.05) {
-        return true; // Occasional slow-play/fold trap
-    }
+    if (strength > 0.8 && Math.random() < 0.05) return true;
     
     return strength < AI_CONFIG.foldThreshold;
 }
@@ -485,745 +757,56 @@ function shouldDealerFold(holeCards, communityCards, pot, currentBet) {
 function shouldDealerRaise(holeCards, communityCards, pot, currentBet, minRaise, maxRaise) {
     const strength = getHandStrength(holeCards, communityCards);
     
-    // Don't raise if check is available
     if (currentBet === 0) {
         return strength > AI_CONFIG.raiseThreshold;
     }
     
-    // Determine raise frequency based on hand strength
     const raiseChance = (strength - AI_CONFIG.raiseThreshold) / (1 - AI_CONFIG.raiseThreshold);
-    const adjustedChance = raiseChance * AI_CONFIG.callFrequency;
+    const adjustedChance = raiseChance * 0.85;
     
-    // Add bluff chance
     const isBluffing = strength < 0.4 && Math.random() < AI_CONFIG.bluffChance;
     
     if (strength > AI_CONFIG.raiseThreshold || isBluffing) {
         if (Math.random() < adjustedChance || isBluffing) {
-            // Calculate raise amount
-            const baseRaise = minRaise;
-            const maxPossibleRaise = Math.min(maxRaise, pot * AI_CONFIG.maxBetMultiplier);
-            
             if (isBluffing) {
-                // Bluffs go big
                 return Math.min(pot * 0.75, maxRaise);
             }
             
-            // Value bets scale with hand strength
             const strengthMultiplier = 1 + (strength - 0.7) * 2;
             const raiseAmount = Math.min(
-                baseRaise * strengthMultiplier,
-                maxPossibleRaise
+                minRaise * strengthMultiplier,
+                Math.min(maxRaise, pot * 2.0)
             );
             
             return Math.max(raiseAmount, minRaise);
         }
     }
     
-    return null; // Don't raise
+    return null;
 }
 
 function getDealerAIAction(holeCards, communityCards, pot, currentBet, minRaise, maxRaise) {
-    // Check if should fold
     if (shouldDealerFold(holeCards, communityCards, pot, currentBet)) {
         return { action: 'fold' };
     }
     
-    // Check if should raise
-    const raiseAmount = shouldDealerRaise(
-        holeCards, communityCards, pot, currentBet, minRaise, maxRaise
-    );
+    const raiseAmount = shouldDealerRaise(holeCards, communityCards, pot, currentBet, minRaise, maxRaise);
     
     if (raiseAmount !== null) {
         return { action: 'raise', amount: raiseAmount };
     }
     
-    // Default to call/check
     return { action: currentBet > 0 ? 'call' : 'check' };
-}
-
-// ============================================
-// MULTIPLAYER SUPPORT
-// ============================================
-
-let multiplayerRoom = null;
-let playerCallbacks = {};
-
-function createRoom(hostName) {
-    const roomId = generateRoomId();
-    multiplayerRoom = {
-        id: roomId,
-        host: hostName,
-        players: {},
-        gameState: null,
-        createdAt: Date.now()
-    };
-    
-    gameState.isMultiplayer = true;
-    gameState.roomId = roomId;
-    
-    console.log(`🏠 Room created: ${roomId}`);
-    return roomId;
-}
-
-function joinRoom(roomId, playerName, playerId) {
-    if (!multiplayerRoom || multiplayerRoom.id !== roomId) {
-        // Try to load room from Firebase (would be implemented with real backend)
-        multiplayerRoom = {
-            id: roomId,
-            players: {},
-            gameState: null,
-            createdAt: Date.now()
-        };
-    }
-    
-    multiplayerRoom.players[playerId] = {
-        id: playerId,
-        name: playerName,
-        holeCards: [],
-        bet: 0,
-        folded: false,
-        balance: 1000
-    };
-    
-    gameState.isMultiplayer = true;
-    gameState.roomId = roomId;
-    
-    console.log(`👤 ${playerName} joined room ${roomId}`);
-    return multiplayerRoom;
-}
-
-function generateRoomId() {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
-
-function subscribeToRoomUpdates(callback) {
-    if (playerCallbacks.update) {
-        playerCallbacks.update = callback;
-    } else {
-        playerCallbacks.update = callback;
-    }
-}
-
-function broadcastRoomUpdate() {
-    if (playerCallbacks.update && multiplayerRoom) {
-        playerCallbacks.update(multiplayerRoom);
-    }
-}
-
-// ============================================
-// GAME ACTIONS - SINGLE PLAYER
-// ============================================
-
-function startHand(buyIn) {
-    singlePlayerState = {
-        deck: getNewShuffledDeck(),
-        playerHoleCards: [],
-        dealerHoleCards: [],
-        communityCards: [],
-        pot: buyIn * 2,
-        playerBet: buyIn,
-        dealerBet: buyIn,
-        currentPhase: 'preflop',
-        gameOver: false,
-        winner: null,
-        playerHandRank: null,
-        dealerHandRank: null,
-        playerFolded: false
-    };
-    
-    // Deal hole cards
-    singlePlayerState.playerHoleCards.push(drawCard());
-    singlePlayerState.dealerHoleCards.push(drawCard());
-    singlePlayerState.playerHoleCards.push(drawCard());
-    singlePlayerState.dealerHoleCards.push(drawCard());
-    
-    singlePlayerState.playerHandRank = evaluatePlayerHand();
-    
-    return singlePlayerState;
-}
-
-function dealFlop() {
-    drawCard();
-    singlePlayerState.communityCards.push(drawCard());
-    singlePlayerState.communityCards.push(drawCard());
-    singlePlayerState.communityCards.push(drawCard());
-    
-    singlePlayerState.currentPhase = 'flop';
-    singlePlayerState.playerHandRank = evaluatePlayerHand();
-    
-    return singlePlayerState;
-}
-
-function dealTurn() {
-    drawCard();
-    singlePlayerState.communityCards.push(drawCard());
-    
-    singlePlayerState.currentPhase = 'turn';
-    singlePlayerState.playerHandRank = evaluatePlayerHand();
-    
-    return singlePlayerState;
-}
-
-function dealRiver() {
-    drawCard();
-    singlePlayerState.communityCards.push(drawCard());
-    
-    singlePlayerState.currentPhase = 'river';
-    singlePlayerState.playerHandRank = evaluatePlayerHand();
-    
-    return singlePlayerState;
-}
-
-function showdown() {
-    singlePlayerState.currentPhase = 'showdown';
-    
-    const playerEval = evaluatePlayerHand();
-    const dealerEval = evaluateDealerHand();
-    
-    singlePlayerState.playerHandRank = playerEval;
-    singlePlayerState.dealerHandRank = dealerEval;
-    
-    if (isBetterHand(playerEval, dealerEval)) {
-        singlePlayerState.winner = 'player';
-    } else if (isBetterHand(dealerEval, playerEval)) {
-        singlePlayerState.winner = 'dealer';
-    } else {
-        singlePlayerState.winner = 'tie';
-    }
-    
-    singlePlayerState.gameOver = true;
-    
-    return singlePlayerState;
-}
-
-function playerFold() {
-    singlePlayerState.playerFolded = true;
-    singlePlayerState.winner = 'dealer';
-    singlePlayerState.gameOver = true;
-    singlePlayerState.currentPhase = 'showdown';
-    
-    return singlePlayerState;
-}
-
-function playerCheck() {
-    return advanceBetting();
-}
-
-function playerCall(amount) {
-    singlePlayerState.playerBet += amount;
-    singlePlayerState.pot += amount;
-    
-    return advanceBetting();
-}
-
-function playerRaise(amount) {
-    singlePlayerState.playerBet = amount;
-    singlePlayerState.pot += (amount - singlePlayerState.playerBet);
-    
-    return advanceBetting();
-}
-
-function getCallAmount() {
-    return singlePlayerState.dealerBet - singlePlayerState.playerBet;
-}
-
-function getMinRaise() {
-    const callAmount = getCallAmount();
-    return callAmount + singlePlayerState.playerBet;
-}
-
-function resetGame() {
-    singlePlayerState = {
-        deck: [],
-        playerHoleCards: [],
-        dealerHoleCards: [],
-        communityCards: [],
-        pot: 0,
-        playerBet: 0,
-        dealerBet: 0,
-        currentPhase: 'idle',
-        gameOver: false,
-        winner: null,
-        playerHandRank: null,
-        dealerHandRank: null,
-        playerFolded: false
-    };
-}
-
-function getGameState() {
-    return singlePlayerState;
-}
-
-function advanceBetting() {
-    // Get dealer action using AI
-    const dealerAction = getDealerAIAction(
-        singlePlayerState.dealerHoleCards,
-        singlePlayerState.communityCards,
-        singlePlayerState.pot,
-        singlePlayerState.dealerBet - singlePlayerState.playerBet,
-        getMinRaise(),
-        singlePlayerState.playerBet + singlePlayerState.pot
-    );
-    
-    singlePlayerState.lastAction = `Dealer ${dealerAction.action}`;
-    
-    switch (singlePlayerState.currentPhase) {
-        case 'preflop':
-            if (dealerAction.action === 'fold') {
-                singlePlayerState.winner = 'player';
-                singlePlayerState.gameOver = true;
-            } else if (dealerAction.action === 'raise') {
-                singlePlayerState.dealerBet = dealerAction.amount;
-                singlePlayerState.pot += (dealerAction.amount - singlePlayerState.playerBet);
-                singlePlayerState.playerBet = dealerAction.amount;
-            } else if (dealerAction.action === 'call') {
-                const callAmount = singlePlayerState.dealerBet - singlePlayerState.playerBet;
-                singlePlayerState.dealerBet += callAmount;
-                singlePlayerState.pot += callAmount;
-                dealFlop();
-            } else {
-                dealFlop();
-            }
-            break;
-        case 'flop':
-            if (dealerAction.action === 'fold') {
-                singlePlayerState.winner = 'player';
-                singlePlayerState.gameOver = true;
-            } else if (dealerAction.action === 'raise') {
-                singlePlayerState.dealerBet = dealerAction.amount;
-                singlePlayerState.pot += (dealerAction.amount - singlePlayerState.playerBet);
-                singlePlayerState.playerBet = dealerAction.amount;
-            } else if (dealerAction.action === 'call') {
-                const callAmount = singlePlayerState.dealerBet - singlePlayerState.playerBet;
-                singlePlayerState.dealerBet += callAmount;
-                singlePlayerState.pot += callAmount;
-                dealTurn();
-            } else {
-                dealTurn();
-            }
-            break;
-        case 'turn':
-            if (dealerAction.action === 'fold') {
-                singlePlayerState.winner = 'player';
-                singlePlayerState.gameOver = true;
-            } else if (dealerAction.action === 'raise') {
-                singlePlayerState.dealerBet = dealerAction.amount;
-                singlePlayerState.pot += (dealerAction.amount - singlePlayerState.playerBet);
-                singlePlayerState.playerBet = dealerAction.amount;
-            } else if (dealerAction.action === 'call') {
-                const callAmount = singlePlayerState.dealerBet - singlePlayerState.playerBet;
-                singlePlayerState.dealerBet += callAmount;
-                singlePlayerState.pot += callAmount;
-                dealRiver();
-            } else {
-                dealRiver();
-            }
-            break;
-        case 'river':
-            if (dealerAction.action === 'fold') {
-                singlePlayerState.winner = 'player';
-                singlePlayerState.gameOver = true;
-            } else if (dealerAction.action === 'raise') {
-                singlePlayerState.dealerBet = dealerAction.amount;
-                singlePlayerState.pot += (dealerAction.amount - singlePlayerState.playerBet);
-                singlePlayerState.playerBet = dealerAction.amount;
-            } else if (dealerAction.action === 'call') {
-                const callAmount = singlePlayerState.dealerBet - singlePlayerState.playerBet;
-                singlePlayerState.dealerBet += callAmount;
-                singlePlayerState.pot += callAmount;
-                showdown();
-            } else {
-                showdown();
-            }
-            break;
-    }
-    
-    return singlePlayerState;
-}
-
-// ============================================
-// HAND EVALUATION FUNCTIONS
-// ============================================
-
-function evaluatePlayerHand() {
-    const allCards = [...singlePlayerState.playerHoleCards, ...singlePlayerState.communityCards];
-    return findBestHand(allCards);
-}
-
-function evaluateDealerHand() {
-    const allCards = [...singlePlayerState.dealerHoleCards, ...singlePlayerState.communityCards];
-    return findBestHand(allCards);
-}
-
-// ============================================
-// CARD RENDERING
-// ============================================
-
-function createCardElement(card) {
-    const cardEl = document.createElement('div');
-    cardEl.className = `card ${card.color}`;
-    
-    const face = document.createElement('div');
-    face.className = 'card-face';
-    
-    const topCorner = document.createElement('div');
-    topCorner.className = 'card-corner';
-    topCorner.innerHTML = `
-        <span class="card-value">${RANK_DISPLAY[card.rank]}</span>
-        <span class="card-suit">${card.suit}</span>
-    `;
-    
-    const center = document.createElement('div');
-    center.className = 'card-center';
-    center.textContent = card.suit;
-    
-    const bottomCorner = document.createElement('div');
-    bottomCorner.className = 'card-corner bottom';
-    bottomCorner.innerHTML = `
-        <span class="card-value">${RANK_DISPLAY[card.rank]}</span>
-        <span class="card-suit">${card.suit}</span>
-    `;
-    
-    face.appendChild(topCorner);
-    face.appendChild(center);
-    face.appendChild(bottomCorner);
-    cardEl.appendChild(face);
-    
-    return cardEl;
-}
-
-function createCardBack() {
-    const cardEl = document.createElement('div');
-    cardEl.className = 'card-back';
-    return cardEl;
-}
-
-function renderCard(slot, card, faceUp = true, delay = 0) {
-    slot.innerHTML = '';
-    
-    if (!card) {
-        const placeholder = document.createElement('div');
-        placeholder.className = 'card-placeholder';
-        slot.appendChild(placeholder);
-        return;
-    }
-    
-    const cardEl = faceUp ? createCardElement(card) : createCardBack();
-    cardEl.style.animationDelay = `${delay}s`;
-    cardEl.classList.add('dealing');
-    slot.appendChild(cardEl);
-}
-
-function revealDealerCards() {
-    const slot1 = document.getElementById('dealerCard1');
-    const slot2 = document.getElementById('dealerCard2');
-    
-    if (singlePlayerState.dealerHoleCards[0]) {
-        slot1.innerHTML = '';
-        const cardEl = createCardElement(singlePlayerState.dealerHoleCards[0]);
-        cardEl.classList.add('revealing');
-        slot1.appendChild(cardEl);
-    }
-    
-    if (singlePlayerState.dealerHoleCards[1]) {
-        setTimeout(() => {
-            slot2.innerHTML = '';
-            const cardEl = createCardElement(singlePlayerState.dealerHoleCards[1]);
-            cardEl.classList.add('revealing');
-            slot2.appendChild(cardEl);
-        }, 200);
-    }
-}
-
-function renderAllCards() {
-    renderCard(document.getElementById('playerCard1'), singlePlayerState.playerHoleCards[0], true, 0);
-    renderCard(document.getElementById('playerCard2'), singlePlayerState.playerHoleCards[1], true, 0.1);
-    
-    const dealerFaceUp = singlePlayerState.currentPhase === 'showdown' || singlePlayerState.gameOver;
-    renderCard(document.getElementById('dealerCard1'), 
-              dealerFaceUp ? singlePlayerState.dealerHoleCards[0] : null, 
-              dealerFaceUp, 0.2);
-    renderCard(document.getElementById('dealerCard2'), 
-              dealerFaceUp ? singlePlayerState.dealerHoleCards[1] : null, 
-              dealerFaceUp, 0.3);
-    
-    const boardSlots = ['boardCard1', 'boardCard2', 'boardCard3', 'boardCard4', 'boardCard5'];
-    for (let i = 0; i < 5; i++) {
-        const slot = document.getElementById(boardSlots[i]);
-        const card = singlePlayerState.communityCards[i];
-        const delay = 0.4 + (i * 0.1);
-        
-        if (i < 3 && singlePlayerState.currentPhase === 'preflop') {
-            renderCard(slot, null, false, delay);
-        } else {
-            renderCard(slot, card, true, delay);
-        }
-    }
-    
-    if (singlePlayerState.currentPhase === 'showdown' && singlePlayerState.gameOver) {
-        revealDealerCards();
-    }
-}
-
-function updatePhaseIndicator() {
-    const phaseText = document.getElementById('phaseText');
-    const phaseNames = {
-        'preflop': 'Pre-Flop',
-        'flop': 'The Flop',
-        'turn': 'The Turn',
-        'river': 'The River',
-        'showdown': 'Showdown'
-    };
-    
-    if (singlePlayerState.currentPhase !== 'idle') {
-        phaseText.textContent = phaseNames[singlePlayerState.currentPhase] || '';
-        
-        // Add dealer action info
-        if (singlePlayerState.lastAction && singlePlayerState.currentPhase !== 'showdown') {
-            phaseText.textContent += ` • ${singlePlayerState.lastAction}`;
-        }
-    } else {
-        phaseText.textContent = '';
-    }
-}
-
-function getPhaseName() {
-    const phaseNames = {
-        'preflop': 'Pre-Flop',
-        'flop': 'Flop',
-        'turn': 'Turn',
-        'river': 'River'
-    };
-    return phaseNames[singlePlayerState.currentPhase] || '';
-}
-
-// ============================================
-// GLOBAL EXPORTS
-// ============================================
-
-window.poker = {
-    // Single player
-    startHand,
-    dealFlop,
-    dealTurn,
-    dealRiver,
-    showdown,
-    playerFold,
-    playerCheck,
-    playerCall,
-    playerRaise,
-    evaluatePlayerHand,
-    evaluateDealerHand,
-    getCallAmount,
-    getMinRaise,
-    getGameState,
-    resetGame,
-    HAND_RANKINGS,
-    HAND_NAMES,
-    
-    // AI Dealer
-    getDealerAIAction,
-    getHandStrength,
-    AI_CONFIG,
-    
-    // Multiplayer
-    createRoom,
-    joinRoom,
-    subscribeToRoomUpdates,
-    broadcastRoomUpdate,
-    isMultiplayer: () => gameState.isMultiplayer
-};
-
-window.renderPoker = {
-    renderCard,
-    renderAllCards,
-    revealDealerCards,
-    updatePhaseIndicator,
-    getPhaseName,
-    createCardElement,
-    createCardBack
-};
-
-// ============================================
-// POKER GAME CLASS (for Multiplayer)
-// ============================================
-
-class PokerGame {
-    constructor(options = {}) {
-        this.isMultiplayer = options.isMultiplayer || false;
-        this.groupId = options.groupId || null;
-        this.onStateChange = options.onStateChange || (() => {});
-        this.onActionRequired = options.onActionRequired || (() => {});
-        this.onGameEnd = options.onGameEnd || (() => {});
-        this.onMessage = options.onMessage || (() => {});
-        
-        this.currentState = null;
-    }
-    
-    updateState(state) {
-        this.currentState = state;
-        
-        // Notify about state change
-        if (this.onStateChange) {
-            this.onStateChange(state);
-        }
-        
-        // Check if action is required
-        if (state.currentPlayerSeat !== undefined && this.isMultiplayer) {
-            // Check if it's this player's turn
-            const players = state.players || {};
-            // Convert currentPlayerSeat to string since Firestore stores keys as strings
-            const currentPlayerSeatKey = state.currentPlayerSeat.toString();
-            const currentPlayer = players[currentPlayerSeatKey];
-            
-            if (currentPlayer && !currentPlayer.folded && !currentPlayer.isAllIn) {
-                if (this.onActionRequired) {
-                    this.onActionRequired(state);
-                }
-            }
-        }
-    }
-    
-    playerAction(action, amount = 0) {
-        // For multiplayer, actions are handled through Firestore
-        // For single-player, use the legacy functions
-        if (!this.isMultiplayer) {
-            switch(action) {
-                case 'fold':
-                    playerFold();
-                    break;
-                case 'check':
-                    playerCheck();
-                    break;
-                case 'call':
-                    playerCall(getCallAmount());
-                    break;
-                case 'raise':
-                    playerRaise(amount);
-                    break;
-                case 'allin':
-                    playerRaise(this.getPlayerBalance());
-                    break;
-            }
-            
-            // Transform singlePlayerState to match what handleGameStateChange expects
-            const singleState = getGameState();
-            const transformedState = {
-                phase: singleState.currentPhase,
-                pot: singleState.pot,
-                communityCards: singleState.communityCards,
-                playerCards: singleState.playerHoleCards,
-                dealerCards: singleState.dealerHoleCards,
-                canCheck: singleState.playerBet === singleState.dealerBet,
-                currentBet: singleState.playerBet,
-                minRaise: getMinRaise(),
-                playerBalance: window.App?.currentUser?.balance || 1000,
-                currentPlayer: 'You'  // For single-player mode
-            };
-            
-            this.currentState = transformedState;
-            
-            // Notify about state change
-            if (this.onStateChange) {
-                this.onStateChange(transformedState);
-            }
-            
-            // Check if game ended
-            if (singleState.gameOver && this.onGameEnd) {
-                this.onGameEnd({
-                    winner: singleState.winner,
-                    amount: singleState.pot / 2,
-                    handDescription: singleState.playerHandRank?.name
-                });
-            } else if (singleState.currentPhase === 'showdown') {
-                // Showdown happened
-                if (this.onActionRequired) {
-                    // No action required, game is over
-                }
-            } else {
-                // Check if action is required (player's turn)
-                if (singleState.currentPhase !== 'idle' && !singleState.playerFolded) {
-                    if (this.onActionRequired) {
-                        this.onActionRequired(transformedState);
-                    }
-                }
-            }
-        } else {
-            if (this.onMessage) {
-                this.onMessage(`${action}${amount > 0 ? ' $' + amount : ''}`);
-            }
-        }
-    }
-    
-    getPlayerBalance() {
-        return App.currentUser?.balance || 1000;
-    }
-    
-    start() {
-        // For single-player mode, start a new hand
-        if (!this.isMultiplayer) {
-            const buyIn = 100; // Default buy-in
-            resetGame();
-            startHand(buyIn);
-            
-            // Transform singlePlayerState to match what handleGameStateChange expects
-            const singleState = getGameState();
-            const transformedState = {
-                phase: singleState.currentPhase,
-                pot: singleState.pot,
-                communityCards: singleState.communityCards,
-                playerCards: singleState.playerHoleCards,
-                dealerCards: singleState.dealerHoleCards,
-                canCheck: singleState.playerBet === singleState.dealerBet,
-                currentBet: singleState.playerBet,
-                minRaise: getMinRaise(),
-                playerBalance: window.App?.currentUser?.balance || 1000,
-                currentPlayer: 'You'  // For single-player mode
-            };
-            
-            this.currentState = transformedState;
-            
-            // Notify about initial state
-            if (this.onStateChange) {
-                this.onStateChange(transformedState);
-            }
-        }
-    }
-    
-    startNewHand() {
-        // Start a new hand in single-player mode
-        if (!this.isMultiplayer) {
-            const buyIn = 100;
-            resetGame();
-            startHand(buyIn);
-            
-            // Transform singlePlayerState to match what handleGameStateChange expects
-            const singleState = getGameState();
-            const transformedState = {
-                phase: singleState.currentPhase,
-                pot: singleState.pot,
-                communityCards: singleState.communityCards,
-                playerCards: singleState.playerHoleCards,
-                dealerCards: singleState.dealerHoleCards,
-                canCheck: singleState.playerBet === singleState.dealerBet,
-                currentBet: singleState.playerBet,
-                minRaise: getMinRaise(),
-                playerBalance: window.App?.currentUser?.balance || 1000,
-                currentPlayer: 'You'  // For single-player mode
-            };
-            
-            this.currentState = transformedState;
-            
-            if (this.onStateChange) {
-                this.onStateChange(transformedState);
-            }
-        }
-    }
-    
-    cleanup() {
-        this.currentState = null;
-    }
 }
 
 // Export to window
 window.PokerGame = PokerGame;
+window.poker = {
+    evaluatePlayerHand,
+    evaluateDealerHand,
+    getHandStrength,
+    getGameState: () => singlePlayerState,
+    resetGame: resetSinglePlayerState,
+    HAND_RANKINGS,
+    HAND_NAMES
+};
