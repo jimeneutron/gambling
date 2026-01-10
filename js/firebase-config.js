@@ -36,6 +36,95 @@ document.head.appendChild(firebaseFirestoreScript);
 // ============================================
 // FIREBASE CONFIGURATION - REPLACE THESE VALUES
 // ============================================
+// ============================================
+// EMAIL/PASSWORD AUTHENTICATION
+// ============================================
+
+async function registerWithEmail(email, password) {
+    if (!auth) {
+        throw new Error('Firebase Auth not initialized');
+    }
+    
+    try {
+        // Create user with email and password
+        const result = await auth.createUserWithEmailAndPassword(email, password);
+        
+        // Send email verification
+        if (result.user) {
+            await result.user.sendEmailVerification();
+            console.log('✅ Email verification sent');
+        }
+        
+        console.log('✅ Email registration successful:', email);
+        return result.user;
+    } catch (error) {
+        console.error('❌ Email registration error:', error.code, error.message);
+        throw error;
+    }
+}
+
+async function signInWithEmail(email, password) {
+    if (!auth) {
+        throw new Error('Firebase Auth not initialized');
+    }
+    
+    try {
+        const result = await auth.signInWithEmailAndPassword(email, password);
+        
+        // Check if email is verified
+        if (result.user && !result.user.emailVerified) {
+            // Sign out and throw error
+            await auth.signOut();
+            throw new Error('EMAIL_NOT_VERIFIED');
+        }
+        
+        console.log('✅ Email sign-in successful:', email);
+        return result.user;
+    } catch (error) {
+        console.error('❌ Email sign-in error:', error.code, error.message);
+        if (error.message === 'EMAIL_NOT_VERIFIED') {
+            throw new Error('Please verify your email before logging in. Check your inbox for the verification link.');
+        }
+        throw error;
+    }
+}
+
+async function resendVerificationEmail() {
+    if (!auth) {
+        throw new Error('Firebase Auth not initialized');
+    }
+    
+    const user = auth.currentUser;
+    if (!user) {
+        throw new Error('No user signed in');
+    }
+    
+    if (user.emailVerified) {
+        throw new Error('Email already verified');
+    }
+    
+    try {
+        await user.sendEmailVerification();
+        console.log('✅ Verification email resent');
+    } catch (error) {
+        console.error('❌ Error sending verification email:', error);
+        throw error;
+    }
+}
+
+async function sendPasswordResetEmail(email) {
+    if (!auth) {
+        throw new Error('Firebase Auth not initialized');
+    }
+    
+    try {
+        await auth.sendPasswordResetEmail(email);
+        console.log('✅ Password reset email sent');
+    } catch (error) {
+        console.error('❌ Password reset error:', error);
+        throw error;
+    }
+}
 
 const firebaseConfig = {
     apiKey: "AIzaSyAORZOnXK_g7lCiW2q56o8G0gdwC2JUjXE",
