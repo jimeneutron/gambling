@@ -891,6 +891,43 @@ function handleGroupActionRequired(state) {
     }
 }
 
+function handleGroupGameEnd(result) {
+    hideTurnIndicator();
+    
+    if (!result) return;
+    
+    let message = '';
+    if (result.winner === 'player') {
+        message = `You won $${result.amount}!`;
+    } else if (result.winner === 'dealer') {
+        message = `Dealer wins the pot.`;
+    } else if (result.winner === 'split') {
+        message = `Split pot! You get $${result.amount}`;
+    } else if (result.winner === 'fold') {
+        message = `You folded.`;
+    } else if (result.handResults && Array.isArray(result.handResults)) {
+        // Multiplayer showdown with multiple players
+        const playerResult = result.handResults.find(r => r.id === App.currentUser.uid);
+        if (playerResult) {
+            if (playerResult.won) {
+                message = `You won $${playerResult.amount}!`;
+            } else {
+                message = `You lost. Dealer wins.`;
+            }
+        }
+    }
+    
+    if (message) {
+        showMessage(message);
+    }
+    
+    // Update user balance
+    if (result.amount !== undefined && App.currentUser) {
+        App.currentUser.balance += result.amount;
+        updateBalanceDisplay();
+    }
+}
+
 function updatePlayersList(players) {
     if (!DOM.playersList) return;
     
