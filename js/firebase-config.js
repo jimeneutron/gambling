@@ -29,17 +29,6 @@ const firebaseConfig = {
 };
 
 // ============================================
-// FIREBASE SDK IMPORTS (CDN)
-// ============================================
-
-// Load Firebase SDKs synchronously
-if (typeof firebase === 'undefined') {
-    document.write('<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"><\/script>');
-    document.write('<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"><\/script>');
-    document.write('<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"><\/script>');
-}
-
-// ============================================
 // INITIALIZE FIREBASE
 // ============================================
 
@@ -55,50 +44,88 @@ function isConfigValid() {
            firebaseConfig.apiKey.length > 30;
 }
 
+// Function to load a script dynamically
+function loadScript(src, onload, onerror) {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = onload;
+    script.onerror = onerror;
+    script.async = false;
+    document.head.appendChild(script);
+}
+
+// Load Firebase SDKs in sequence and initialize
 function initializeFirebase() {
     if (!isConfigValid()) {
         console.warn('Firebase config not set. Running in demo mode.');
         return;
     }
     
-    try {
-        if (typeof firebase !== 'undefined') {
+    // Check if Firebase is already loaded (from head section)
+    if (typeof firebase !== 'undefined') {
+        // Firebase already loaded, just initialize
+        try {
             app = firebase.initializeApp(firebaseConfig);
             auth = firebase.auth(app);
             db = firebase.firestore(app);
             firebaseReady = true;
             console.log('Firebase initialized successfully');
-        } else {
-            console.warn('Firebase SDK not loaded');
+        } catch (error) {
+            console.error('Firebase initialization failed:', error.message);
         }
-    } catch (error) {
-        console.error('Firebase initialization failed:', error.message);
+        return;
     }
+    
+    // Firebase not loaded yet, load scripts
+    loadScript('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js', function() {
+        loadScript('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js', function() {
+            loadScript('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js', function() {
+                // All scripts loaded, initialize Firebase
+                if (typeof firebase !== 'undefined') {
+                    try {
+                        app = firebase.initializeApp(firebaseConfig);
+                        auth = firebase.auth(app);
+                        db = firebase.firestore(app);
+                        firebaseReady = true;
+                        console.log('Firebase initialized successfully');
+                    } catch (error) {
+                        console.error('Firebase initialization failed:', error.message);
+                    }
+                } else {
+                    console.warn('Firebase SDK not available');
+                }
+            }, function() {
+                console.error('Failed to load firebase-firestore-compat.js');
+            });
+        }, function() {
+            console.error('Failed to load firebase-auth-compat.js');
+        });
+    }, function() {
+        console.error('Failed to load firebase-app-compat.js');
+    });
 }
 
-// Initialize Firebase immediately
+// Initialize Firebase
 initializeFirebase();
 
 // Create a promise that resolves when Firebase is ready
 window.firebaseReadyPromise = new Promise((resolve) => {
-    if (firebaseReady) {
-        resolve();
-    } else {
-        // Wait for Firebase to be ready
-        const checkInterval = setInterval(() => {
-            if (firebaseReady) {
-                clearInterval(checkInterval);
-                resolve();
-            }
-        }, 100);
-        
-        // Timeout after 10 seconds
-        setTimeout(() => {
+    // Check every 50ms if Firebase is ready
+    const checkInterval = setInterval(() => {
+        if (firebaseReady) {
             clearInterval(checkInterval);
-            console.warn('Firebase initialization timeout');
             resolve();
-        }, 10000);
-    }
+        }
+    }, 50);
+    
+    // Timeout after 10 seconds, still resolve
+    setTimeout(() => {
+        clearInterval(checkInterval);
+        if (!firebaseReady) {
+            console.warn('Firebase initialization timeout');
+        }
+        resolve();
+    }, 10000);
 });
 
 // ============================================
