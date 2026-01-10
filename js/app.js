@@ -91,6 +91,9 @@ function initializeDOMElements() {
     DOM.loginBtn = document.getElementById('loginBtn');
     DOM.logoutBtn = document.getElementById('logoutBtn');
     DOM.authError = document.getElementById('authError');
+    DOM.googleLoginBtn = document.getElementById('googleLoginBtn');
+    DOM.emailLoginBtn = document.getElementById('emailLoginBtn');
+    DOM.emailAuthSection = document.getElementById('emailAuthSection');
     
     // Game Elements
     DOM.gameApp = document.getElementById('gameApp');
@@ -138,6 +141,8 @@ function setupEventListeners() {
     DOM.registerBtn.addEventListener('click', handleRegister);
     DOM.loginBtn.addEventListener('click', handleLogin);
     DOM.logoutBtn.addEventListener('click', handleLogout);
+    DOM.googleLoginBtn.addEventListener('click', handleGoogleLogin);
+    DOM.emailLoginBtn.addEventListener('click', toggleEmailAuth);
     
     // Game Action Events
     DOM.foldBtn.addEventListener('click', () => App.game?.playerAction('fold'));
@@ -231,6 +236,35 @@ async function handleLogin() {
         await loadUserData(userCredential.user.uid);
     } catch (error) {
         showAuthError(getAuthErrorMessage(error.code));
+    }
+}
+
+async function handleGoogleLogin() {
+    try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.setCustomParameters({
+            prompt: 'select_account'
+        });
+        
+        const userCredential = await firebase.auth().signInWithPopup(provider);
+        
+        if (!userCredential.user.emailVerified) {
+            showAuthError('Please verify your Google email before logging in');
+            await firebase.auth().signOut();
+            return;
+        }
+        
+        // Load user data
+        await loadUserData(userCredential.user.uid);
+    } catch (error) {
+        console.error('Google login error:', error);
+        showAuthError(getAuthErrorMessage(error.code));
+    }
+}
+
+function toggleEmailAuth() {
+    if (DOM.emailAuthSection) {
+        DOM.emailAuthSection.classList.toggle('hidden');
     }
 }
 
