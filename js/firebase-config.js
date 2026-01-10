@@ -62,6 +62,51 @@ async function registerWithEmail(email, password) {
         throw error;
     }
 }
+async function signInWithGoogle() {
+    if (!auth) {
+        throw new Error('Firebase Auth not initialized');
+    }
+    
+    // Check if Google sign-in is available
+    const googleProvider = new firebase.auth.GoogleAuthProvider();
+    
+    // Request email scope explicitly
+    googleProvider.addScope('https://www.googleapis.com/auth/userinfo.email');
+    googleProvider.addScope('https://www.googleapis.com/auth/userinfo.profile');
+    
+    // Set custom parameters to force account selection
+    googleProvider.setCustomParameters({
+        prompt: 'select_account'
+    });
+    
+    try {
+        console.log('Initiating Google sign-in...');
+        const result = await auth.signInWithPopup(googleProvider);
+        
+        // Check if email is verified
+        if (result.user && !result.user.emailVerified) {
+            console.warn('⚠️ User signed in with unverified email');
+        }
+        
+        console.log('✅ Google sign-in successful:', result.user.displayName);
+        return result.user;
+    } catch (error) {
+        console.error('❌ Google sign-in error:', error.code, error.message);
+        
+        // Provide more helpful error messages
+        if (error.code === 'auth/popup-blocked') {
+            throw new Error('Popup was blocked. Please allow popups for this site.');
+        } else if (error.code === 'auth/cancelled-popup-request') {
+            throw new Error('Sign-in popup was already open.');
+        } else if (error.code === 'auth/operation-not-allowed') {
+            throw new Error('Google sign-in is not enabled. Please enable it in Firebase Console.');
+        } else if (error.code === 'auth/unauthorized-domain') {
+            throw new Error('This domain is not authorized for OAuth. Add it to Firebase Console → Authentication → Settings → Authorized domains.');
+        }
+        
+        throw error;
+    }
+}
 
 async function signInWithEmail(email, password) {
     if (!auth) {
