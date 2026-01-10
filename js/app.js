@@ -724,7 +724,7 @@ function initEventListeners() {
             case 'r':
                 if (!DOM.raiseBtn.disabled) playerRaise();
                 break;
-        }
+        
     });
 }
 
