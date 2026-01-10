@@ -6,7 +6,7 @@
  * Setup Instructions:
  * 1. Go to https://console.firebase.google.com/
  * 2. Create a new project or select existing one
- * 3. Enable Authentication (Google & Anonymous providers)
+ * 3. Enable Authentication (Google & Email/Password providers)
  * 4. Create a Firestore Database (start in test mode for development)
  * 5. Go to Project Settings > General > Your apps > Web app
  * 6. Copy the firebaseConfig object and replace the placeholders below
@@ -36,140 +36,6 @@ document.head.appendChild(firebaseFirestoreScript);
 // ============================================
 // FIREBASE CONFIGURATION - REPLACE THESE VALUES
 // ============================================
-// ============================================
-// EMAIL/PASSWORD AUTHENTICATION
-// ============================================
-
-async function registerWithEmail(email, password) {
-    if (!auth) {
-        throw new Error('Firebase Auth not initialized');
-    }
-    
-    try {
-        // Create user with email and password
-        const result = await auth.createUserWithEmailAndPassword(email, password);
-        
-        // Send email verification
-        if (result.user) {
-            await result.user.sendEmailVerification();
-            console.log('✅ Email verification sent');
-        }
-        
-        console.log('✅ Email registration successful:', email);
-        return result.user;
-    } catch (error) {
-        console.error('❌ Email registration error:', error.code, error.message);
-        throw error;
-    }
-}
-async function signInWithGoogle() {
-    if (!auth) {
-        throw new Error('Firebase Auth not initialized');
-    }
-    
-    // Check if Google sign-in is available
-    const googleProvider = new firebase.auth.GoogleAuthProvider();
-    
-    // Request email scope explicitly
-    googleProvider.addScope('https://www.googleapis.com/auth/userinfo.email');
-    googleProvider.addScope('https://www.googleapis.com/auth/userinfo.profile');
-    
-    // Set custom parameters to force account selection
-    googleProvider.setCustomParameters({
-        prompt: 'select_account'
-    });
-    
-    try {
-        console.log('Initiating Google sign-in...');
-        const result = await auth.signInWithPopup(googleProvider);
-        
-        // Check if email is verified
-        if (result.user && !result.user.emailVerified) {
-            console.warn('⚠️ User signed in with unverified email');
-        }
-        
-        console.log('✅ Google sign-in successful:', result.user.displayName);
-        return result.user;
-    } catch (error) {
-        console.error('❌ Google sign-in error:', error.code, error.message);
-        
-        // Provide more helpful error messages
-        if (error.code === 'auth/popup-blocked') {
-            throw new Error('Popup was blocked. Please allow popups for this site.');
-        } else if (error.code === 'auth/cancelled-popup-request') {
-            throw new Error('Sign-in popup was already open.');
-        } else if (error.code === 'auth/operation-not-allowed') {
-            throw new Error('Google sign-in is not enabled. Please enable it in Firebase Console.');
-        } else if (error.code === 'auth/unauthorized-domain') {
-            throw new Error('This domain is not authorized for OAuth. Add it to Firebase Console → Authentication → Settings → Authorized domains.');
-        }
-        
-        throw error;
-    }
-}
-
-async function signInWithEmail(email, password) {
-    if (!auth) {
-        throw new Error('Firebase Auth not initialized');
-    }
-    
-    try {
-        const result = await auth.signInWithEmailAndPassword(email, password);
-        
-        // Check if email is verified
-        if (result.user && !result.user.emailVerified) {
-            // Sign out and throw error
-            await auth.signOut();
-            throw new Error('EMAIL_NOT_VERIFIED');
-        }
-        
-        console.log('✅ Email sign-in successful:', email);
-        return result.user;
-    } catch (error) {
-        console.error('❌ Email sign-in error:', error.code, error.message);
-        if (error.message === 'EMAIL_NOT_VERIFIED') {
-            throw new Error('Please verify your email before logging in. Check your inbox for the verification link.');
-        }
-        throw error;
-    }
-}
-
-async function resendVerificationEmail() {
-    if (!auth) {
-        throw new Error('Firebase Auth not initialized');
-    }
-    
-    const user = auth.currentUser;
-    if (!user) {
-        throw new Error('No user signed in');
-    }
-    
-    if (user.emailVerified) {
-        throw new Error('Email already verified');
-    }
-    
-    try {
-        await user.sendEmailVerification();
-        console.log('✅ Verification email resent');
-    } catch (error) {
-        console.error('❌ Error sending verification email:', error);
-        throw error;
-    }
-}
-
-async function sendPasswordResetEmail(email) {
-    if (!auth) {
-        throw new Error('Firebase Auth not initialized');
-    }
-    
-    try {
-        await auth.sendPasswordResetEmail(email);
-        console.log('✅ Password reset email sent');
-    } catch (error) {
-        console.error('❌ Password reset error:', error);
-        throw error;
-    }
-}
 
 const firebaseConfig = {
     apiKey: "AIzaSyAORZOnXK_g7lCiW2q56o8G0gdwC2JUjXE",
@@ -251,32 +117,114 @@ async function signInWithGoogle() {
         throw new Error('Firebase Auth not initialized');
     }
     
-    const provider = new firebase.auth.GoogleAuthProvider();
-    provider.setCustomParameters({
+    const googleProvider = new firebase.auth.GoogleAuthProvider();
+    
+    // Request email scope explicitly
+    googleProvider.addScope('https://www.googleapis.com/auth/userinfo.email');
+    googleProvider.addScope('https://www.googleapis.com/auth/userinfo.profile');
+    
+    // Set custom parameters to force account selection
+    googleProvider.setCustomParameters({
         prompt: 'select_account'
     });
     
     try {
-        const result = await auth.signInWithPopup(provider);
+        console.log('Initiating Google sign-in...');
+        const result = await auth.signInWithPopup(googleProvider);
+        
+        // Check if email is verified
+        if (result.user && !result.user.emailVerified) {
+            console.warn('⚠️ User signed in with unverified email');
+        }
+        
         console.log('✅ Google sign-in successful:', result.user.displayName);
         return result.user;
     } catch (error) {
         console.error('❌ Google sign-in error:', error.code, error.message);
+        
+        // Provide more helpful error messages
+        if (error.code === 'auth/popup-blocked') {
+            throw new Error('Popup was blocked. Please allow popups for this site.');
+        } else if (error.code === 'auth/cancelled-popup-request') {
+            throw new Error('Sign-in popup was already open.');
+        } else if (error.code === 'auth/operation-not-allowed') {
+            throw new Error('Google sign-in is not enabled. Please enable it in Firebase Console.');
+        } else if (error.code === 'auth/unauthorized-domain') {
+            throw new Error('This domain is not authorized for OAuth. Add it to Firebase Console → Authentication → Settings → Authorized domains.');
+        }
+        
         throw error;
     }
 }
 
-async function signInAsGuest() {
+async function registerWithEmail(email, password) {
     if (!auth) {
         throw new Error('Firebase Auth not initialized');
     }
     
     try {
-        const result = await auth.signInAnonymously(auth);
-        console.log('✅ Anonymous sign-in successful:', result.user.uid);
+        // Create user with email and password
+        const result = await auth.createUserWithEmailAndPassword(email, password);
+        
+        // Send email verification
+        if (result.user) {
+            await result.user.sendEmailVerification();
+            console.log('✅ Email verification sent');
+        }
+        
+        console.log('✅ Email registration successful:', email);
         return result.user;
     } catch (error) {
-        console.error('❌ Anonymous sign-in error:', error.code, error.message);
+        console.error('❌ Email registration error:', error.code, error.message);
+        throw error;
+    }
+}
+
+async function signInWithEmail(email, password) {
+    if (!auth) {
+        throw new Error('Firebase Auth not initialized');
+    }
+    
+    try {
+        const result = await auth.signInWithEmailAndPassword(email, password);
+        
+        // Check if email is verified
+        if (result.user && !result.user.emailVerified) {
+            // Sign out and throw error
+            await auth.signOut();
+            throw new Error('Please verify your email before logging in. Check your inbox for the verification link.');
+        }
+        
+        console.log('✅ Email sign-in successful:', email);
+        return result.user;
+    } catch (error) {
+        console.error('❌ Email sign-in error:', error.code, error.message);
+        if (error.message && error.message.includes('verify your email')) {
+            throw new Error('Please verify your email before logging in. Check your inbox for the verification link.');
+        }
+        throw error;
+    }
+}
+
+async function resendVerificationEmail() {
+    if (!auth) {
+        throw new Error('Firebase Auth not initialized');
+    }
+    
+    const user = auth.currentUser;
+    if (!user) {
+        throw new Error('No user signed in');
+    }
+    
+    if (user.emailVerified) {
+        throw new Error('Email already verified');
+    }
+    
+    try {
+        await user.sendEmailVerification();
+        console.log('✅ Verification email resent');
+    } catch (error) {
+        console.error('❌ Error sending verification email:', error);
         throw error;
     }
 }
@@ -451,7 +399,9 @@ function isFirebaseReady() {
 
 window.firebaseAuth = {
     signInWithGoogle,
-    signInAsGuest,
+    registerWithEmail,
+    signInWithEmail,
+    resendVerificationEmail,
     logoutUser,
     onAuthChange,
     isFirebaseReady
