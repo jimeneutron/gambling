@@ -24,7 +24,7 @@ const AppState = {
 // ============================================
 
 const DOM = {
-        loginModal: document.getElementById('loginModal'),
+    loginModal: document.getElementById('loginModal'),
     gameApp: document.getElementById('gameApp'),
     loadingOverlay: document.getElementById('loadingOverlay'),
     bankruptcyModal: document.getElementById('bankruptcyModal'),
@@ -229,24 +229,19 @@ function handleLoginError(error) {
         message = 'Network error. Please check your connection.';
     } else if (error.code === 'auth/operation-not-allowed') {
         message = 'This sign-in method is not enabled. Please configure Firebase Authentication.';
+    } else if (error.code === 'auth/unauthorized-domain') {
+        message = 'Domain not authorized.\n\nTo fix:\n1. Go to Firebase Console → Authentication → Settings\n2. Add "jimeneutron.github.io" to Authorized domains\n3. Refresh this page';
     } else if (error.message && error.message.includes('Firebase Auth not initialized')) {
         message = 'Firebase not configured. Playing in Demo Mode.';
         // Auto-switch to demo mode
         handleLoginSuccess({ displayName: 'Demo Player', uid: 'demo-' + Date.now() });
         return;
-    } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        message = 'Invalid email or password.';
-    } else if (error.code === 'auth/email-already-in-use') {
-        message = 'This email is already registered. Please login instead.';
-    } else if (error.code === 'auth/weak-password') {
-        message = 'Password should be at least 6 characters.';
-    } else if (error.message && error.message.includes('verify your email')) {
+    } else if (error.message) {
         message = error.message;
     }
     
     alert(message);
 }
-
 
 async function signInWithGoogle() {
     showLoading();
@@ -272,13 +267,20 @@ async function signInWithGoogle() {
     }
 }
 
-
 function toggleEmailAuth() {
+    if (!DOM.emailAuthSection) return;
     DOM.emailAuthSection.classList.toggle('hidden');
-    DOM.googleLoginBtn.classList.toggle('hidden');
+    if (DOM.googleLoginBtn) {
+        DOM.googleLoginBtn.classList.toggle('hidden');
+    }
 }
 
 async function handleEmailAuth(authType) {
+    if (!DOM.emailInput || !DOM.passwordInput) {
+        alert('Email login not available');
+        return;
+    }
+    
     const email = DOM.emailInput.value.trim();
     const password = DOM.passwordInput.value;
     
@@ -320,7 +322,7 @@ async function resendVerificationEmail() {
         await window.firebaseAuth.resendVerificationEmail();
         alert('Verification email sent! Please check your inbox.');
     } catch (error) {
-        alert('Error: ' + error.message);
+        alert('Error: ' + (error.message || 'Failed to send verification email'));
     }
 }
 
@@ -664,16 +666,25 @@ function handleBetSliderChange() {
 // ============================================
 
 function initEventListeners() {
-    DOM.googleLoginBtn.addEventListener('click', signInWithGoogle);
-    DOM.emailLoginBtn.addEventListener('click', toggleEmailAuth);
-    DOM.registerBtn.addEventListener('click', () => handleEmailAuth('register'));
-    DOM.loginBtn.addEventListener('click', () => handleEmailAuth('login'));
-    DOM.sendVerificationBtn.addEventListener('click', resendVerificationEmail);
+    // Login buttons
+    if (DOM.googleLoginBtn) {
+        DOM.googleLoginBtn.addEventListener('click', signInWithGoogle);
+    }
+    if (DOM.emailLoginBtn) {
+        DOM.emailLoginBtn.addEventListener('click', toggleEmailAuth);
+    }
+    if (DOM.registerBtn) {
+        DOM.registerBtn.addEventListener('click', () => handleEmailAuth('register'));
+    }
+    if (DOM.loginBtn) {
+        DOM.loginBtn.addEventListener('click', () => handleEmailAuth('login'));
+    }
+    if (DOM.sendVerificationBtn) {
+        DOM.sendVerificationBtn.addEventListener('click', resendVerificationEmail);
+    }
+    
     DOM.logoutBtn.addEventListener('click', logoutUser);
     
-    // ... keep all other event listeners the same ...
-}
-
     DOM.buyInButtons.forEach(btn => {
         btn.addEventListener('click', handleBuyInClick);
     });
@@ -726,8 +737,7 @@ function initEventListeners() {
                 break;
         }
     });
-
-                
+}
 
 async function checkAuthState() {
     try {
