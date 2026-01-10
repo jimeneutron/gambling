@@ -811,21 +811,6 @@ async function handleGroupGameEnd(result) {
         await rotateDealerButton();
     }
 }
-            'gameState.phase': 'preflop',
-            'gameState.deck': deck,
-            'gameState.dealerCards': dealerCards,
-            'gameState.players': players,
-            'gameState.pot': ante * playerIds.length,
-            'gameState.communityCards': [],
-            'gameState.currentPlayerSeat': lowestSeat(playerIds),
-            'gameState.minRaise': ante * 2
-        });
-        
-        showMessage('Game started! Good luck!');
-    } catch (error) {
-        console.error('Error starting game:', error);
-    }
-}
 
 function createShuffledDeck() {
     const deck = [];
