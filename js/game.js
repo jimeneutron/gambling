@@ -1086,9 +1086,137 @@ class PokerGame {
     
     playerAction(action, amount = 0) {
         // For multiplayer, actions are handled through Firestore
-        // This is a placeholder for any client-side actions
-        if (this.onMessage) {
-            this.onMessage(`${action}${amount > 0 ? ' $' + amount : ''}`);
+        // For single-player, use the legacy functions
+        if (!this.isMultiplayer) {
+            switch(action) {
+                case 'fold':
+                    playerFold();
+                    break;
+                case 'check':
+                    playerCheck();
+                    break;
+                case 'call':
+                    playerCall(getCallAmount());
+                    break;
+                case 'raise':
+                    playerRaise(amount);
+                    break;
+                case 'allin':
+                    playerRaise(this.getPlayerBalance());
+                    break;
+            }
+            
+            // Transform singlePlayerState to match what handleGameStateChange expects
+            const singleState = getGameState();
+            const transformedState = {
+                phase: singleState.currentPhase,
+                pot: singleState.pot,
+                communityCards: singleState.communityCards,
+                playerCards: singleState.playerHoleCards,
+                dealerCards: singleState.dealerHoleCards,
+                canCheck: singleState.playerBet === singleState.dealerBet,
+                currentBet: singleState.playerBet,
+                minRaise: getMinRaise(),
+                playerBalance: window.App?.currentUser?.balance || 1000,
+                currentPlayer: 'You'  // For single-player mode
+            };
+            
+            this.currentState = transformedState;
+            
+            // Notify about state change
+            if (this.onStateChange) {
+                this.onStateChange(transformedState);
+            }
+            
+            // Check if game ended
+            if (singleState.gameOver && this.onGameEnd) {
+                this.onGameEnd({
+                    winner: singleState.winner,
+                    amount: singleState.pot / 2,
+                    handDescription: singleState.playerHandRank?.name
+                });
+            } else if (singleState.currentPhase === 'showdown') {
+                // Showdown happened
+                if (this.onActionRequired) {
+                    // No action required, game is over
+                }
+            } else {
+                // Check if action is required (player's turn)
+                if (singleState.currentPhase !== 'idle' && !singleState.playerFolded) {
+                    if (this.onActionRequired) {
+                        this.onActionRequired(transformedState);
+                    }
+                }
+            }
+        } else {
+            if (this.onMessage) {
+                this.onMessage(`${action}${amount > 0 ? ' $' + amount : ''}`);
+            }
+        }
+    }
+    
+    getPlayerBalance() {
+        return App.currentUser?.balance || 1000;
+    }
+    
+    start() {
+        // For single-player mode, start a new hand
+        if (!this.isMultiplayer) {
+            const buyIn = 100; // Default buy-in
+            resetGame();
+            startHand(buyIn);
+            
+            // Transform singlePlayerState to match what handleGameStateChange expects
+            const singleState = getGameState();
+            const transformedState = {
+                phase: singleState.currentPhase,
+                pot: singleState.pot,
+                communityCards: singleState.communityCards,
+                playerCards: singleState.playerHoleCards,
+                dealerCards: singleState.dealerHoleCards,
+                canCheck: singleState.playerBet === singleState.dealerBet,
+                currentBet: singleState.playerBet,
+                minRaise: getMinRaise(),
+                playerBalance: window.App?.currentUser?.balance || 1000,
+                currentPlayer: 'You'  // For single-player mode
+            };
+            
+            this.currentState = transformedState;
+            
+            // Notify about initial state
+            if (this.onStateChange) {
+                this.onStateChange(transformedState);
+            }
+        }
+    }
+    
+    startNewHand() {
+        // Start a new hand in single-player mode
+        if (!this.isMultiplayer) {
+            const buyIn = 100;
+            resetGame();
+            startHand(buyIn);
+            
+            // Transform singlePlayerState to match what handleGameStateChange expects
+            const singleState = getGameState();
+            const transformedState = {
+                phase: singleState.currentPhase,
+                pot: singleState.pot,
+                communityCards: singleState.communityCards,
+                playerCards: singleState.playerHoleCards,
+                dealerCards: singleState.dealerHoleCards,
+                canCheck: singleState.playerBet === singleState.dealerBet,
+                currentBet: singleState.playerBet,
+                minRaise: getMinRaise(),
+                playerBalance: window.App?.currentUser?.balance || 1000,
+                currentPlayer: 'You'  // For single-player mode
+            };
+            
+            this.currentState = transformedState;
+            
+            if (this.onStateChange) {
+                this.onStateChange(transformedState);
+            }
         }
     }
     
