@@ -16,7 +16,7 @@
                 <p class="subtitle">Texas Hold'em Poker</p>
             </div>
             <div class="modal-body">
-                <p class="disclaimer">🎮  Casino </p>
+                <p class="disclaimer">🎮 Social Casino - Virtual Currency Only</p>
                 <p class="email-notice">You must verify your email to play</p>
                 <button id="googleLoginBtn" class="btn btn-primary btn-full">
                     <svg class="btn-icon" viewBox="0 0 24 24" width="20" height="20">
@@ -30,14 +30,19 @@
                 <div class="divider">
                     <span>or</span>
                 </div>
-               
+                <button id="emailLoginBtn" class="btn btn-secondary btn-full">
+                    <svg class="btn-icon" viewBox="0 0 24 24" width="20" height="20">
+                        <path fill="currentColor" d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                    </svg>
+                    Sign in with Email
+                </button>
                 <div id="emailAuthSection" class="email-auth-section hidden">
                     <input type="email" id="emailInput" placeholder="Email address" class="auth-input">
                     <input type="password" id="passwordInput" placeholder="Password" class="auth-input">
                     <div class="auth-buttons">
                         <button id="registerBtn" class="btn btn-primary">Register</button>
-                        <button id="loginBtn" class="btn btn-secondary">Login</button>
-                    </div>
+                        <button id="loginBtn" class="btn btn-secondary">                    </div>
+Login</button>
                     <button id="sendVerificationBtn" class="btn btn-small btn-link">Resend verification email</button>
                 </div>
             </div>
@@ -265,8 +270,7 @@
 
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay hidden">
-        <div class="spinner"></div>
-        <p>Loading...</p>
+        <div class="spinner"></p>
     </div>
 
     <!-- Firebase SDK -->
