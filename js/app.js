@@ -20,6 +20,9 @@ const App = {
     dealerSeat: -1  // The player with the dealer button (controls game flow)
 };
 
+// Export App to window for access from other modules
+window.App = App;
+
 // ============================================
 // DOM Elements Cache
 // ============================================
