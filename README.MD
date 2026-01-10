@@ -1,4 +1,4 @@
-# CasinoSim - Texas Hold'em Poker
+# CasinoSim 
 
 A premium online Texas Hold'em poker game built with vanilla JavaScript, Firebase, and hosted on GitHub Pages. This is a social casino simulation using virtual currency only.
 
