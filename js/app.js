@@ -288,6 +288,8 @@ async function handleLogout() {
 
 async function loadUserData(uid) {
     try {
+        console.log('loadUserData called with uid:', uid);
+        
         // Validate uid is a non-empty string
         if (!uid || typeof uid !== 'string' || uid.trim() === '') {
             console.error('Invalid uid:', uid);
@@ -295,6 +297,15 @@ async function loadUserData(uid) {
                 DOM.authError.textContent = 'Invalid user ID. Please sign in again.';
                 DOM.authError.style.display = 'block';
             }
+            // Still show game interface with default user
+            App.currentUser = {
+                uid: 'unknown',
+                email: 'Player',
+                balance: 1000,
+                totalWinnings: 0,
+                gamesPlayed: 0
+            };
+            showGameInterface();
             return;
         }
         
@@ -302,32 +313,44 @@ async function loadUserData(uid) {
         const userEmail = App.currentUser?.email || 
                          (DOM.emailInput?.value && DOM.emailInput.value.trim() !== '' ? DOM.emailInput.value : 'Player');
         
-        const userDoc = await firebase.firestore().collection('users').doc(uid.trim()).get();
-        
-        if (userDoc.exists) {
-            const userData = userDoc.data();
-            // Safely handle potential undefined values
-            const userBalance = typeof userData.balance === 'number' ? userData.balance : 1000;
+        try {
+            const userDoc = await firebase.firestore().collection('users').doc(uid.trim()).get();
             
-            App.currentUser = {
-                uid: uid.trim(),
-                email: userEmail,
-                balance: userBalance,
-                totalWinnings: userData.totalWinnings || 0,
-                gamesPlayed: userData.gamesPlayed || 0
-            };
-        } else {
-            // Create user data if it doesn't exist
-            const newUserData = {
-                email: userEmail,
-                balance: 1000,
-                totalWinnings: 0,
-                gamesPlayed: 0,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
-            
-            await saveUserData(uid.trim(), newUserData);
-            
+            if (userDoc.exists) {
+                const userData = userDoc.data();
+                // Safely handle potential undefined values
+                const userBalance = typeof userData.balance === 'number' ? userData.balance : 1000;
+                
+                App.currentUser = {
+                    uid: uid.trim(),
+                    email: userEmail,
+                    balance: userBalance,
+                    totalWinnings: userData.totalWinnings || 0,
+                    gamesPlayed: userData.gamesPlayed || 0
+                };
+            } else {
+                // Create user data if it doesn't exist
+                const newUserData = {
+                    email: userEmail,
+                    balance: 1000,
+                    totalWinnings: 0,
+                    gamesPlayed: 0,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                
+                await saveUserData(uid.trim(), newUserData);
+                
+                App.currentUser = {
+                    uid: uid.trim(),
+                    email: userEmail,
+                    balance: 1000,
+                    totalWinnings: 0,
+                    gamesPlayed: 0
+                };
+            }
+        } catch (firestoreError) {
+            console.error('Firestore error, continuing with default user:', firestoreError);
+            // Create default user data
             App.currentUser = {
                 uid: uid.trim(),
                 email: userEmail,
@@ -340,13 +363,17 @@ async function loadUserData(uid) {
         showGameInterface();
     } catch (error) {
         console.error('Error loading user data:', error);
-        // Show error safely - handle null authError
-        if (DOM.authError) {
-            DOM.authError.textContent = 'Error loading account data. Please try again.';
-            DOM.authError.style.display = 'block';
-        } else {
-            alert('Error loading account data. Please try again.');
+        // Always show game interface even on error
+        if (!App.currentUser) {
+            App.currentUser = {
+                uid: uid || 'unknown',
+                email: 'Player',
+                balance: 1000,
+                totalWinnings: 0,
+                gamesPlayed: 0
+            };
         }
+        showGameInterface();
     }
 }
 
@@ -505,7 +532,7 @@ async function leaveGlobalGroup() {
 function subscribeToGroupState() {
     const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
     
-    App.unsubscribeGameState = groupRef.onSnapshot(async (snapshot) => {
+    App.unsubscribeGameState = groupRef.onSnapshot((snapshot) => {
         if (!snapshot.exists) {
             showMessage('Global room does not exist.');
             return;
@@ -547,6 +574,8 @@ function subscribeToGroupState() {
         } else {
             hideTurnIndicator();
         }
+    }, (error) => {
+        console.error('Firestore subscription error:', error);
     });
 }
 
