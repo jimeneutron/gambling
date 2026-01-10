@@ -1,800 +1,833 @@
-/**
- * CasinoSim - Texas Hold'em Application Controller
- * =================================================
- * Handles user interface, authentication, and poker game coordination
- * Fixed: Works without ES6 modules for local file access
- */
+// MiniMax Gambling App - Application Controller with AI Dealer & Global Multiplayer
+// Author: MiniMax Agent
 
 // ============================================
-// APPLICATION STATE
+// Constants
 // ============================================
+const DEFAULT_GROUP_ID = 'global_default_group';
+const MIN_PLAYERS_TO_START = 2;
 
-const AppState = {
+// ============================================
+// Application State
+// ============================================
+const App = {
     currentUser: null,
-    userData: null,
-    buyInAmount: 0,
-    currentBet: 0,
-    gamePhase: 'idle',
-    unsubscribeFromUser: null,
-    isDemoMode: false
+    game: null,
+    isMultiplayer: false,
+    unsubscribeGameState: null,
+    playerSeat: -1,
+    isInGroup: false
 };
 
 // ============================================
-// DOM ELEMENTS
+// DOM Elements Cache
 // ============================================
-
 const DOM = {
-    loginModal: document.getElementById('loginModal'),
-    gameApp: document.getElementById('gameApp'),
-    loadingOverlay: document.getElementById('loadingOverlay'),
-    bankruptcyModal: document.getElementById('bankruptcyModal'),
-    rulesModal: document.getElementById('rulesModal'),
+    // Auth Elements
+    loginModal: null,
+    emailForm: null,
+    emailInput: null,
+    passwordInput: null,
+    registerBtn: null,
+    loginBtn: null,
+    logoutBtn: null,
+    authError: null,
     
-    googleLoginBtn: document.getElementById('googleLoginBtn'),
-    emailLoginBtn: document.getElementById('emailLoginBtn'),
-    emailAuthSection: document.getElementById('emailAuthSection'),
-    emailInput: document.getElementById('emailInput'),
-    passwordInput: document.getElementById('passwordInput'),
-    registerBtn: document.getElementById('registerBtn'),
-    loginBtn: document.getElementById('loginBtn'),
-    sendVerificationBtn: document.getElementById('sendVerificationBtn'),
-    logoutBtn: document.getElementById('logoutBtn'),
+    // Game Elements
+    gameContainer: null,
+    potDisplay: null,
+    phaseIndicator: null,
+    messageCenter: null,
+    bettingZone: null,
+    foldBtn: null,
+    checkBtn: null,
+    callBtn: null,
+    raiseBtn: null,
+    allInBtn: null,
+    raiseInput: null,
+    balanceDisplay: null,
+    betAmountDisplay: null,
+    dealerInfo: null,
+    turnIndicator: null,
     
-    userAvatar: document.getElementById('userAvatar'),
-    userName: document.getElementById('userName'),
-    userBalance: document.getElementById('userBalance'),
-    playerAvatarSmall: document.getElementById('playerAvatarSmall'),
+    // Multiplayer Elements
+    playersList: null,
     
-    buyInSection: document.getElementById('buyInSection'),
-    bettingControls: document.getElementById('bettingControls'),
-    newHandSection: document.getElementById('newHandSection'),
-    bettingZone: document.getElementById('bettingZone'),
-    
-    betSlider: document.getElementById('betSlider'),
-    betSliderValue: document.getElementById('betSliderValue'),
-    foldBtn: document.getElementById('foldBtn'),
-    checkBtn: document.getElementById('checkBtn'),
-    callBtn: document.getElementById('callBtn'),
-    raiseBtn: document.getElementById('raiseBtn'),
-    
-    buyInButtons: document.querySelectorAll('.buy-in-btn'),
-    customBuyInInput: document.getElementById('customBuyIn'),
-    customBuyInBtn: document.getElementById('customBuyInBtn'),
-    
-    potAmount: document.getElementById('potAmount'),
-    toCallAmount: document.getElementById('toCallAmount'),
-    phaseText: document.getElementById('phaseText'),
-    gameMessage: document.getElementById('gameMessage'),
-    playerHandRank: document.getElementById('playerHandRank'),
-    dealerStatus: document.getElementById('dealerStatus'),
-    handResult: document.getElementById('handResult'),
-    
-    newHandBtn: document.getElementById('newHandBtn'),
-    
-    showRulesBtn: document.getElementById('showRulesBtn'),
-    closeRulesBtn: document.getElementById('closeRulesBtn'),
-    resetBalanceBtn: document.getElementById('resetBalanceBtn')
+    // Card Elements
+    playerCards: [],
+    communityCards: [],
+    dealerCards: []
 };
 
 // ============================================
-// UTILITY FUNCTIONS
+// Initialization
 // ============================================
-
-function showLoading() {
-    DOM.loadingOverlay.classList.remove('hidden');
-}
-
-function hideLoading() {
-    DOM.loadingOverlay.classList.add('hidden');
-}
-
-function formatCurrency(amount) {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    }).format(amount);
-}
-
-function showMessage(message, type = '') {
-    DOM.gameMessage.textContent = message;
-    DOM.gameMessage.className = 'game-message';
+document.addEventListener('DOMContentLoaded', async () => {
+    initializeDOMElements();
+    setupEventListeners();
+    setupFirebaseAuth();
     
-    if (type) {
-        DOM.gameMessage.classList.add(type);
-    }
-    
-    // Auto-hide message after 1 second
-    setTimeout(() => {
-        hideMessage();
-    }, 1000);
-}
-
-function hideMessage() {
-    DOM.gameMessage.textContent = '';
-}
-
-function updateBalanceDisplay(balance) {
-    DOM.userBalance.textContent = formatCurrency(balance);
-    
-    DOM.userBalance.style.transform = 'scale(1.1)';
-    setTimeout(() => {
-        DOM.userBalance.style.transform = 'scale(1)';
-    }, 200);
-}
-
-function updatePotDisplay(amount) {
-    DOM.potAmount.textContent = formatCurrency(amount);
-}
-
-function updateToCallDisplay(amount) {
-    DOM.toCallAmount.textContent = formatCurrency(amount);
-}
-
-function updateHandRankDisplay(handRank) {
-    if (handRank && handRank.name) {
-        DOM.playerHandRank.textContent = handRank.name;
-        DOM.handResult.textContent = `Your hand: ${handRank.name}`;
+    // Check for saved session
+    const user = firebase.auth().currentUser;
+    if (user) {
+        await handleAuthSuccess(user);
     } else {
-        DOM.playerHandRank.textContent = '';
-        DOM.handResult.textContent = '';
+        showLoginModal();
     }
-}
+});
 
-function updatePhaseDisplay(phase) {
-    const phaseNames = {
-        'preflop': 'Pre-Flop',
-        'flop': 'The Flop',
-        'turn': 'The Turn',
-        'river': 'The River',
-        'showdown': 'Showdown'
-    };
-    DOM.phaseText.textContent = phaseNames[phase] || '';
+function initializeDOMElements() {
+    // Auth Elements
+    DOM.loginModal = document.getElementById('loginModal');
+    DOM.emailForm = document.getElementById('emailForm');
+    DOM.emailInput = document.getElementById('emailInput');
+    DOM.passwordInput = document.getElementById('passwordInput');
+    DOM.registerBtn = document.getElementById('registerBtn');
+    DOM.loginBtn = document.getElementById('loginBtn');
+    DOM.logoutBtn = document.getElementById('logoutBtn');
+    DOM.authError = document.getElementById('authError');
+    
+    // Game Elements
+    DOM.gameContainer = document.getElementById('gameContainer');
+    DOM.potDisplay = document.getElementById('potDisplay');
+    DOM.phaseIndicator = document.getElementById('phaseIndicator');
+    DOM.messageCenter = document.getElementById('messageCenter');
+    DOM.bettingZone = document.getElementById('bettingZone');
+    DOM.foldBtn = document.getElementById('foldBtn');
+    DOM.checkBtn = document.getElementById('checkBtn');
+    DOM.callBtn = document.getElementById('callBtn');
+    DOM.raiseBtn = document.getElementById('raiseBtn');
+    DOM.allInBtn = document.getElementById('allInBtn');
+    DOM.raiseInput = document.getElementById('raiseInput');
+    DOM.balanceDisplay = document.getElementById('balanceDisplay');
+    DOM.betAmountDisplay = document.getElementById('betAmountDisplay');
+    DOM.dealerInfo = document.getElementById('dealerInfo');
+    DOM.turnIndicator = document.getElementById('turnIndicator');
+    
+    // Card Elements
+    DOM.playerCards = [
+        document.getElementById('playerCard0'),
+        document.getElementById('playerCard1')
+    ];
+    DOM.communityCards = [
+        document.getElementById('communityCard0'),
+        document.getElementById('communityCard1'),
+        document.getElementById('communityCard2'),
+        document.getElementById('communityCard3'),
+        document.getElementById('communityCard4')
+    ];
+    DOM.dealerCards = [
+        document.getElementById('dealerCard0'),
+        document.getElementById('dealerCard1')
+    ];
+    
+    // Multiplayer Elements
+    DOM.playersList = document.getElementById('playersList');
 }
 
 // ============================================
-// AUTHENTICATION
+// Event Listeners
 // ============================================
-
-async function handleLoginSuccess(user) {
-    AppState.currentUser = user;
+function setupEventListeners() {
+    // Auth Events
+    DOM.registerBtn.addEventListener('click', handleRegister);
+    DOM.loginBtn.addEventListener('click', handleLogin);
+    DOM.logoutBtn.addEventListener('click', handleLogout);
     
-    const displayName = user.displayName || user.email || 'Player';
-    DOM.userName.textContent = displayName;
+    // Game Action Events
+    DOM.foldBtn.addEventListener('click', () => App.game?.playerAction('fold'));
+    DOM.checkBtn.addEventListener('click', () => App.game?.playerAction('check'));
+    DOM.callBtn.addEventListener('click', () => App.game?.playerAction('call'));
+    DOM.raiseBtn.addEventListener('click', () => App.game?.playerAction('raise', parseInt(DOM.raiseInput.value) || 0));
+    DOM.allInBtn.addEventListener('click', () => App.game?.playerAction('allin'));
     
-    if (user.photoURL) {
-        DOM.userAvatar.innerHTML = `<img src="${user.photoURL}" alt="${displayName}" style="width: 100%; height: 100%; border-radius: 50%;">`;
-        DOM.playerAvatarSmall.innerHTML = `<img src="${user.photoURL}" alt="${displayName}" style="width: 100%; height: 100%; border-radius: 50%;">`;
-    } else {
-        DOM.userAvatar.textContent = displayName.charAt(0).toUpperCase();
-        DOM.playerAvatarSmall.textContent = displayName.charAt(0).toUpperCase();
-        DOM.playerAvatarSmall.style.background = 'var(--accent-gold)';
-        DOM.playerAvatarSmall.style.color = '#1a1a1a';
-    }
-    
-    try {
-        showLoading();
-        
-        if (window.firebaseDb) {
-            AppState.userData = await window.firebaseDb.getUserData(user.uid);
-            
-            AppState.unsubscribeFromUser = window.firebaseDb.subscribeToUserData(user.uid, (data) => {
-                AppState.userData = data;
-                updateBalanceDisplay(data.balance);
-                
-                if (data.balance <= 0 && AppState.gamePhase === 'idle') {
-                    DOM.bankruptcyModal.classList.remove('hidden');
-                }
-            });
-        } else {
-            AppState.isDemoMode = true;
-            AppState.userData = {
-                balance: 1000,
-                displayName: displayName
-            };
+    // Raise input validation
+    DOM.raiseInput?.addEventListener('input', () => {
+        const raiseAmount = parseInt(DOM.raiseInput.value) || 0;
+        if (raiseAmount > App.currentUser?.balance) {
+            DOM.raiseInput.value = App.currentUser?.balance || 0;
         }
-        
-        updateBalanceDisplay(AppState.userData.balance);
-        
-        DOM.loginModal.classList.add('hidden');
-        DOM.gameApp.classList.remove('hidden');
-        
-        console.log('✅ Login successful:', displayName);
-    } catch (error) {
-        console.error('❌ Error fetching user data:', error);
-        AppState.isDemoMode = true;
-        AppState.userData = {
-            balance: 1000,
-            displayName: displayName
-        };
-        updateBalanceDisplay(1000);
-        
-        DOM.loginModal.classList.add('hidden');
-        DOM.gameApp.classList.remove('hidden');
-    } finally {
-        hideLoading();
-    }
+    });
 }
 
-function handleLoginError(error) {
-    console.error('❌ Login error:', error);
-    hideLoading();
-    
-    let message = 'Login failed. Please try again.';
-    
-    if (error.code === 'auth/popup-closed-by-user') {
-        message = 'Sign-in popup was closed.';
-    } else if (error.code === 'auth/network-request-failed') {
-        message = 'Network error. Please check your connection.';
-    } else if (error.code === 'auth/operation-not-allowed') {
-        message = 'This sign-in method is not enabled. Please configure Firebase Authentication.';
-    } else if (error.code === 'auth/unauthorized-domain') {
-        message = 'Domain not authorized.\n\nTo fix:\n1. Go to Firebase Console → Authentication → Settings\n2. Add "jimeneutron.github.io" to Authorized domains\n3. Refresh this page';
-    } else if (error.message && error.message.includes('Firebase Auth not initialized')) {
-        message = 'Firebase not configured. Playing in Demo Mode.';
-        // Auto-switch to demo mode
-        handleLoginSuccess({ displayName: 'Demo Player', uid: 'demo-' + Date.now() });
-        return;
-    } else if (error.message) {
-        message = error.message;
-    }
-    
-    alert(message);
-}
-
-async function signInWithGoogle() {
-    showLoading();
-    try {
-        if (window.firebaseAuth && window.firebaseAuth.isFirebaseReady()) {
-            console.log('Attempting Google sign-in...');
-            const user = await window.firebaseAuth.signInWithGoogle();
-            await handleLoginSuccess(user);
-        } else {
-            console.warn('Firebase not ready, checking again...');
-            // Wait and retry
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            if (window.firebaseAuth && window.firebaseAuth.isFirebaseReady()) {
-                const user = await window.firebaseAuth.signInWithGoogle();
-                await handleLoginSuccess(user);
+// ============================================
+// Firebase Authentication
+// ============================================
+function setupFirebaseAuth() {
+    firebase.auth().onAuthStateChanged(async (user) => {
+        if (user) {
+            if (user.emailVerified) {
+                await handleAuthSuccess(user);
             } else {
-                throw new Error('Firebase Auth not initialized');
+                showMessage('Please verify your email to play. Check your inbox for the verification link.');
+                await firebase.auth().signOut();
+                showLoginModal();
             }
+        } else {
+            showLoginModal();
         }
-    } catch (error) {
-        console.error('Google sign-in failed:', error);
-        handleLoginError(error);
-    }
+    });
 }
 
-function toggleEmailAuth() {
-    if (!DOM.emailAuthSection) return;
-    DOM.emailAuthSection.classList.toggle('hidden');
-    if (DOM.googleLoginBtn) {
-        DOM.googleLoginBtn.classList.toggle('hidden');
-    }
-}
-
-async function handleEmailAuth(authType) {
-    if (!DOM.emailInput || !DOM.passwordInput) {
-        alert('Email login not available');
-        return;
-    }
-    
-    const email = DOM.emailInput.value.trim();
+async function handleRegister() {
+    const email = DOM.emailInput.value;
     const password = DOM.passwordInput.value;
     
     if (!email || !password) {
-        showMessage('Please enter email and password', 'lose');
+        showAuthError('Please enter both email and password');
         return;
     }
     
     if (password.length < 6) {
-        showMessage('Password must be at least 6 characters', 'lose');
+        showAuthError('Password must be at least 6 characters');
         return;
     }
     
-    showLoading();
+    try {
+        const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
+        await firebase.auth().currentUser.sendEmailVerification();
+        showMessage('Registration successful! Please check your email to verify your account.');
+        
+        // Save initial balance to Firestore
+        await saveUserData(userCredential.user.uid, {
+            email: email,
+            balance: 1000, // Starting balance
+            totalWinnings: 0,
+            gamesPlayed: 0,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        await firebase.auth().signOut();
+    } catch (error) {
+        showAuthError(getAuthErrorMessage(error.code));
+    }
+}
+
+async function handleLogin() {
+    const email = DOM.emailInput.value;
+    const password = DOM.passwordInput.value;
+    
+    if (!email || !password) {
+        showAuthError('Please enter both email and password');
+        return;
+    }
     
     try {
-        let user;
+        const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
         
-        if (authType === 'register') {
-            user = await window.firebaseAuth.registerWithEmail(email, password);
-            alert('Account created! Please check your email and click the verification link before logging in.');
-            toggleEmailAuth();
-            DOM.emailInput.value = '';
-            DOM.passwordInput.value = '';
-            hideLoading();
+        if (!userCredential.user.emailVerified) {
+            showAuthError('Please verify your email before logging in');
+            await firebase.auth().signOut();
             return;
+        }
+        
+        // Load user data
+        await loadUserData(userCredential.user.uid);
+    } catch (error) {
+        showAuthError(getAuthErrorMessage(error.code));
+    }
+}
+
+async function handleLogout() {
+    // Leave the global group first
+    await leaveGlobalGroup();
+    
+    if (App.game) {
+        App.game.cleanup();
+    }
+    if (App.unsubscribeGameState) {
+        App.unsubscribeGameState();
+    }
+    
+    App.game = null;
+    App.isMultiplayer = false;
+    
+    await firebase.auth().signOut();
+    showLoginModal();
+}
+
+async function loadUserData(uid) {
+    try {
+        const userDoc = await firebase.firestore().collection('users').doc(uid).get();
+        const userEmail = DOM.emailInput.value;
+        
+        if (userDoc.exists) {
+            const userData = userDoc.data();
+            App.currentUser = {
+                uid: uid,
+                email: userEmail,
+                balance: userData.balance || 1000,
+                totalWinnings: userData.totalWinnings || 0,
+                gamesPlayed: userData.gamesPlayed || 0
+            };
         } else {
-            user = await window.firebaseAuth.signInWithEmail(email, password);
+            // Create user data if it doesn't exist
+            await saveUserData(uid, {
+                email: userEmail,
+                balance: 1000,
+                totalWinnings: 0,
+                gamesPlayed: 0,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            App.currentUser = {
+                uid: uid,
+                email: userEmail,
+                balance: 1000,
+                totalWinnings: 0,
+                gamesPlayed: 0
+            };
         }
         
-        await handleLoginSuccess(user);
+        showGameInterface();
     } catch (error) {
-        handleLoginError(error);
+        console.error('Error loading user data:', error);
+        showAuthError('Error loading account data. Please try again.');
     }
 }
 
-async function resendVerificationEmail() {
+async function saveUserData(uid, data) {
     try {
-        await window.firebaseAuth.resendVerificationEmail();
-        alert('Verification email sent! Please check your inbox.');
+        await firebase.firestore().collection('users').doc(uid).set(data, { merge: true });
     } catch (error) {
-        alert('Error: ' + (error.message || 'Failed to send verification email'));
+        console.error('Error saving user data:', error);
     }
 }
 
-async function logoutUser() {
+async function updateUserBalance(amount) {
+    if (!App.currentUser) return;
+    
+    App.currentUser.balance += amount;
+    
+    if (amount > 0) {
+        App.currentUser.totalWinnings += amount;
+    }
+    
+    App.currentUser.gamesPlayed += 1;
+    
+    await saveUserData(App.currentUser.uid, {
+        balance: App.currentUser.balance,
+        totalWinnings: App.currentUser.totalWinnings,
+        gamesPlayed: App.currentUser.gamesPlayed
+    });
+    
+    updateBalanceDisplay();
+}
+
+// ============================================
+// Global Group Management
+// ============================================
+async function joinGlobalGroup() {
+    if (App.isInGroup) return;
+    
     try {
-        if (window.firebaseAuth && window.firebaseAuth.isFirebaseReady()) {
-            await window.firebaseAuth.logoutUser();
-        }
+        const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
+        const groupDoc = await groupRef.get();
         
-        if (AppState.unsubscribeFromUser) {
-            AppState.unsubscribeFromUser();
-        }
-        
-        AppState.currentUser = null;
-        AppState.userData = null;
-        AppState.buyInAmount = 0;
-        AppState.currentBet = 0;
-        AppState.gamePhase = 'idle';
-        
-        DOM.gameApp.classList.add('hidden');
-        DOM.loginModal.classList.remove('hidden');
-        
-        resetGameBoard();
-        
-        console.log('👋 User signed out');
-    } catch (error) {
-        console.error('❌ Sign-out error:', error);
-    }
-}
-
-// ============================================
-// BUY-IN SYSTEM
-// ============================================
-
-async function processBuyIn(amount) {
-    if (!AppState.userData || AppState.userData.balance < amount) {
-        showMessage('Insufficient balance!', 'lose');
-        return;
-    }
-    
-    AppState.userData.balance -= amount;
-    updateBalanceDisplay(AppState.userData.balance);
-    
-    if (AppState.currentUser && !AppState.isDemoMode && window.firebaseDb) {
-        await window.firebaseDb.updateUserBalance(AppState.currentUser.uid, AppState.userData.balance);
-    }
-    
-    await startHand(amount);
-}
-
-function handleBuyInClick(e) {
-    const button = e.target.closest('.buy-in-btn');
-    if (!button) return;
-    
-    const amount = parseInt(button.dataset.amount);
-    processBuyIn(amount);
-}
-
-function handleCustomBuyIn() {
-    const input = DOM.customBuyInInput;
-    const amount = parseInt(input.value);
-    
-    if (isNaN(amount) || amount < 10) {
-        showMessage('Minimum buy-in is $10', 'lose');
-        return;
-    }
-    
-    if (amount > AppState.userData.balance) {
-        showMessage('Insufficient balance!', 'lose');
-        return;
-    }
-    
-    processBuyIn(amount);
-    input.value = '';
-}
-
-// ============================================
-// GAME ACTIONS
-// ============================================
-
-async function startHand(buyIn) {
-    const gameState = window.poker.startHand(buyIn);
-    
-    AppState.buyInAmount = buyIn;
-    AppState.gamePhase = 'preflop';
-    
-    updatePotDisplay(gameState.pot);
-    updateToCallDisplay(window.poker.getCallAmount());
-    updatePhaseDisplay('preflop');
-    updateHandRankDisplay(gameState.playerHandRank);
-    
-    DOM.buyInSection.classList.add('hidden');
-    DOM.bettingControls.classList.remove('hidden');
-    DOM.newHandSection.classList.add('hidden');
-    DOM.bettingZone.classList.remove('hidden');
-    
-    window.renderPoker.renderAllCards();
-    window.renderPoker.updatePhaseIndicator();
-    
-    updateBettingControls(gameState);
-    
-    console.log(`🃏 Hand started with buy-in: $${buyIn}`);
-}
-
-function updateBettingControls(gameState) {
-    const callAmount = gameState.playerBet < gameState.dealerBet 
-        ? gameState.dealerBet - gameState.playerBet 
-        : 0;
-    
-    updateToCallDisplay(callAmount);
-    
-    const maxBet = Math.min(AppState.userData.balance, callAmount + 1000);
-    DOM.betSlider.max = maxBet;
-    
-    const canCheck = callAmount === 0;
-    const canCall = callAmount > 0 && callAmount <= AppState.userData.balance;
-    const canRaise = AppState.userData.balance > callAmount;
-    
-    DOM.checkBtn.disabled = !canCheck;
-    DOM.callBtn.disabled = !canCall;
-    DOM.raiseBtn.disabled = !canRaise || canCheck;
-    DOM.foldBtn.disabled = false;
-    
-    const sliderValue = parseInt(DOM.betSlider.value);
-    DOM.betSliderValue.textContent = formatCurrency(sliderValue);
-}
-
-async function playerFold() {
-    const gameState = window.poker.playerFold();
-    
-    DOM.dealerStatus.textContent = '(Player Folded)';
-    showMessage('You Folded - Dealer Wins', 'lose');
-    
-    await handleHandEnd(gameState);
-}
-
-async function playerCheck() {
-    const gameState = window.poker.playerCheck();
-    
-    window.renderPoker.renderAllCards();
-    updatePotDisplay(gameState.pot);
-    updatePhaseDisplay(gameState.currentPhase);
-    updateHandRankDisplay(gameState.playerHandRank);
-    window.renderPoker.updatePhaseIndicator();
-    
-    if (gameState.gameOver) {
-        await handleHandEnd(gameState);
-    } else {
-        updateBettingControls(gameState);
-    }
-}
-
-async function playerCall() {
-    const callAmount = window.poker.getCallAmount();
-    
-    AppState.userData.balance -= callAmount;
-    updateBalanceDisplay(AppState.userData.balance);
-    
-    if (AppState.currentUser && !AppState.isDemoMode && window.firebaseDb) {
-        await window.firebaseDb.updateUserBalance(AppState.currentUser.uid, AppState.userData.balance);
-    }
-    
-    const gameState = window.poker.playerCall(callAmount);
-    
-    window.renderPoker.renderAllCards();
-    updatePotDisplay(gameState.pot);
-    updatePhaseDisplay(gameState.currentPhase);
-    updateHandRankDisplay(gameState.playerHandRank);
-    window.renderPoker.updatePhaseIndicator();
-    
-    if (gameState.gameOver) {
-        await handleHandEnd(gameState);
-    } else {
-        updateBettingControls(gameState);
-    }
-}
-
-async function playerRaise() {
-    const raiseAmount = parseInt(DOM.betSlider.value);
-    const totalBet = raiseAmount;
-    
-    AppState.userData.balance -= (totalBet - AppState.currentBet);
-    updateBalanceDisplay(AppState.userData.balance);
-    AppState.currentBet = totalBet;
-    
-    if (AppState.currentUser && !AppState.isDemoMode && window.firebaseDb) {
-        await window.firebaseDb.updateUserBalance(AppState.currentUser.uid, AppState.userData.balance);
-    }
-    
-    const gameState = window.poker.playerRaise(raiseAmount);
-    
-    window.renderPoker.renderAllCards();
-    updatePotDisplay(gameState.pot);
-    updatePhaseDisplay(gameState.currentPhase);
-    updateHandRankDisplay(gameState.playerHandRank);
-    window.renderPoker.updatePhaseIndicator();
-    
-    if (gameState.gameOver) {
-        await handleHandEnd(gameState);
-    } else {
-        updateBettingControls(gameState);
-    }
-}
-
-async function handleHandEnd(gameState) {
-    AppState.gamePhase = 'showdown';
-    AppState.currentBet = 0;
-    
-    window.renderPoker.revealDealerCards();
-    
-    if (gameState.dealerHandRank) {
-        DOM.dealerStatus.textContent = gameState.dealerHandRank.name;
-    }
-    
-    let winnings = 0;
-    let message = '';
-    let messageType = '';
-    
-    if (gameState.winner === 'player') {
-        winnings = gameState.pot;
-        message = `You Win ${formatCurrency(winnings)}!`;
-        messageType = 'win';
-        
-        if (gameState.playerHandRank) {
-            message += ` (${gameState.playerHandRank.name})`;
-        }
-    } else if (gameState.winner === 'dealer') {
-        winnings = 0;
-        message = 'Dealer Wins';
-        messageType = 'lose';
-    } else {
-        winnings = gameState.pot / 2;
-        message = `Split Pot - ${formatCurrency(winnings)} Each`;
-        messageType = 'push';
-    }
-    
-    showMessage(message, messageType);
-    
-    AppState.userData.balance += winnings;
-    updateBalanceDisplay(AppState.userData.balance);
-    
-    if (AppState.currentUser && !AppState.isDemoMode && window.firebaseDb) {
-        await window.firebaseDb.updateUserBalance(AppState.currentUser.uid, AppState.userData.balance);
-        
-        const stats = {
-            gamesPlayed: (AppState.userData.gamesPlayed || 0) + 1,
-            totalWins: (AppState.userData.totalWins || 0) + (gameState.winner === 'player' ? 1 : 0),
-            totalLosses: (AppState.userData.totalLosses || 0) + (gameState.winner === 'dealer' ? 1 : 0),
-            totalPushes: (AppState.userData.totalPushes || 0) + (gameState.winner === 'tie' ? 1 : 0)
-        };
-        await window.firebaseDb.updateUserStats(AppState.currentUser.uid, stats);
-    }
-    
-    DOM.bettingControls.classList.add('hidden');
-    DOM.newHandSection.classList.remove('hidden');
-    
-    if (AppState.userData.balance <= 0) {
-        setTimeout(() => {
-            DOM.bankruptcyModal.classList.remove('hidden');
-        }, 1500);
-    }
-}
-
-function startNewHand() {
-    AppState.gamePhase = 'idle';
-    AppState.currentBet = 0;
-    
-    DOM.bettingControls.classList.add('hidden');
-    DOM.newHandSection.classList.add('hidden');
-    DOM.bettingZone.classList.add('hidden');
-    DOM.buyInSection.classList.remove('hidden');
-    
-    hideMessage();
-    DOM.dealerStatus.textContent = '';
-    DOM.handResult.textContent = '';
-    updateHandRankDisplay(null);
-    updatePotDisplay(0);
-    
-    resetGameBoard();
-    updateBuyInButtons();
-}
-
-function updateBuyInButtons() {
-    DOM.buyInButtons.forEach(btn => {
-        const amount = parseInt(btn.dataset.amount);
-        btn.disabled = amount > AppState.userData.balance;
-    });
-}
-
-function resetGameBoard() {
-    window.poker.resetGame();
-    
-    const cardSlots = [
-        'playerCard1', 'playerCard2',
-        'dealerCard1', 'dealerCard2',
-        'boardCard1', 'boardCard2', 'boardCard3', 'boardCard4', 'boardCard5'
-    ];
-    
-    cardSlots.forEach(slotId => {
-        const slot = document.getElementById(slotId);
-        if (slot) {
-            slot.innerHTML = '';
-            if (slotId.startsWith('board')) {
-                const placeholder = document.createElement('div');
-                placeholder.className = 'card-placeholder';
-                slot.appendChild(placeholder);
-            } else {
-                const cardBack = document.createElement('div');
-                cardBack.className = 'card-back';
-                slot.appendChild(cardBack);
-            }
-        }
-    });
-    
-    DOM.phaseText.textContent = '';
-}
-
-async function resetBalance() {
-    if (window.firebaseDb) {
-        const newBalance = await window.firebaseDb.resetUserBalance(AppState.currentUser.uid);
-        AppState.userData.balance = newBalance;
-        updateBalanceDisplay(newBalance);
-    } else {
-        AppState.userData.balance = 1000;
-        updateBalanceDisplay(1000);
-    }
-    
-    DOM.bankruptcyModal.classList.add('hidden');
-    showMessage('Balance reset! Good luck!', 'win');
-    
-    updateBuyInButtons();
-}
-
-function handleBetSliderChange() {
-    const value = parseInt(DOM.betSlider.value);
-    DOM.betSliderValue.textContent = formatCurrency(value);
-}
-
-// ============================================
-// EVENT LISTENERS
-// ============================================
-
-function initEventListeners() {
-    // Login buttons
-    if (DOM.googleLoginBtn) {
-        DOM.googleLoginBtn.addEventListener('click', signInWithGoogle);
-    }
-    if (DOM.emailLoginBtn) {
-        DOM.emailLoginBtn.addEventListener('click', toggleEmailAuth);
-    }
-    if (DOM.registerBtn) {
-        DOM.registerBtn.addEventListener('click', () => handleEmailAuth('register'));
-    }
-    if (DOM.loginBtn) {
-        DOM.loginBtn.addEventListener('click', () => handleEmailAuth('login'));
-    }
-    if (DOM.sendVerificationBtn) {
-        DOM.sendVerificationBtn.addEventListener('click', resendVerificationEmail);
-    }
-    
-    DOM.logoutBtn.addEventListener('click', logoutUser);
-    
-    DOM.buyInButtons.forEach(btn => {
-        btn.addEventListener('click', handleBuyInClick);
-    });
-    
-    DOM.customBuyInBtn.addEventListener('click', handleCustomBuyIn);
-    DOM.customBuyInInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            handleCustomBuyIn();
-        }
-    });
-    
-    DOM.foldBtn.addEventListener('click', playerFold);
-    DOM.checkBtn.addEventListener('click', playerCheck);
-    DOM.callBtn.addEventListener('click', playerCall);
-    DOM.raiseBtn.addEventListener('click', playerRaise);
-    
-    DOM.betSlider.addEventListener('input', handleBetSliderChange);
-    
-    DOM.newHandBtn.addEventListener('click', startNewHand);
-    
-    DOM.resetBalanceBtn.addEventListener('click', resetBalance);
-    
-    DOM.showRulesBtn.addEventListener('click', () => {
-        DOM.rulesModal.classList.remove('hidden');
-    });
-    DOM.closeRulesBtn.addEventListener('click', () => {
-        DOM.rulesModal.classList.add('hidden');
-    });
-    
-    DOM.rulesModal.addEventListener('click', (e) => {
-        if (e.target === DOM.rulesModal) {
-            DOM.rulesModal.classList.add('hidden');
-        }
-    });
-    
-    document.addEventListener('keydown', (e) => {
-        if (AppState.gamePhase === 'idle') return;
-        
-        switch (e.key.toLowerCase()) {
-            case 'f':
-                if (!DOM.foldBtn.disabled) playerFold();
-                break;
-            case 'c':
-            case ' ':
-                if (!DOM.checkBtn.disabled) playerCheck();
-                else if (!DOM.callBtn.disabled) playerCall();
-                break;
-            case 'r':
-                if (!DOM.raiseBtn.disabled) playerRaise();
-                break;
-        }
-    });
-}
-
-async function checkAuthState() {
-    try {
-        if (window.firebaseAuth && window.firebaseAuth.isFirebaseReady()) {
-            window.firebaseAuth.onAuthChange(async (user) => {
-                if (user) {
-                    await handleLoginSuccess(user);
-                } else {
-                    hideLoading();
-                    DOM.loginModal.classList.remove('hidden');
+        if (!groupDoc.exists) {
+            // Create the global group if it doesn't exist
+            await groupRef.set({
+                name: 'Global Poker Room',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                gameState: {
+                    phase: 'waiting',
+                    pot: 0,
+                    communityCards: [],
+                    players: {},
+                    dealerCards: []
                 }
             });
-        } else {
-            console.log('🎮 Running in demo mode (Firebase not configured)');
-            AppState.isDemoMode = true;
-            hideLoading();
-            DOM.loginModal.classList.remove('hidden');
         }
+        
+        // Find an available seat
+        const groupData = groupDoc.data();
+        const occupiedSeats = Object.keys(groupData?.gameState?.players || {}).map(s => parseInt(s));
+        let availableSeat = -1;
+        
+        for (let i = 0; i < 6; i++) {
+            if (!occupiedSeats.includes(i)) {
+                availableSeat = i;
+                break;
+            }
+        }
+        
+        if (availableSeat === -1) {
+            showMessage('The global room is full. Please try again later.');
+            return;
+        }
+        
+        App.playerSeat = availableSeat;
+        
+        // Add player to the global group
+        const playerData = {
+            id: App.currentUser.uid,
+            name: App.currentUser.email.split('@')[0],
+            seat: availableSeat,
+            balance: App.currentUser.balance,
+            currentBet: 0,
+            folded: false,
+            isAllIn: false,
+            joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        await groupRef.update({
+            [`gameState.players.${availableSeat}`]: playerData
+        });
+        
+        App.isInGroup = true;
+        App.isMultiplayer = true;
+        
+        showMessage(`Joined the global poker room! You are player ${availableSeat + 1}.`);
+        
+        // Subscribe to group game state changes
+        subscribeToGroupState();
+        
     } catch (error) {
-        console.log('🎮 Running in demo mode (no Firebase)');
-        AppState.isDemoMode = true;
-        hideLoading();
-        DOM.loginModal.classList.remove('hidden');
+        console.error('Error joining global group:', error);
+        showMessage('Error joining the global room. Please try again.');
     }
 }
 
-// ============================================
-// INITIALIZATION
-// ============================================
-
-async function init() {
-    console.log('🎰 CasinoSim Texas Hold\'em initializing...');
+async function leaveGlobalGroup() {
+    if (!App.isInGroup) return;
     
-    initEventListeners();
-    
-    // Wait a moment for Firebase scripts to load
-    setTimeout(async () => {
-        await checkAuthState();
-        console.log('✅ CasinoSim ready!');
-    }, 500);
+    try {
+        const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
+        const groupDoc = await groupRef.get();
+        
+        if (groupDoc.exists) {
+            const groupData = groupDoc.data();
+            const players = { ...groupData.gameState?.players };
+            delete players[App.playerSeat];
+            
+            const playerCount = Object.keys(players).length;
+            
+            if (playerCount === 0) {
+                // Reset the game state if no players left
+                await groupRef.update({
+                    'gameState.phase': 'waiting',
+                    'gameState.pot': 0,
+                    'gameState.communityCards': [],
+                    'gameState.dealerCards': [],
+                    'gameState.players': {},
+                    'gameState.currentPlayerSeat': 0
+                });
+            } else {
+                await groupRef.update({
+                    'gameState.players': players
+                });
+            }
+        }
+        
+        if (App.unsubscribeGameState) {
+            App.unsubscribeGameState();
+            App.unsubscribeGameState = null;
+        }
+        
+        App.isInGroup = false;
+        App.isMultiplayer = false;
+        App.playerSeat = -1;
+        
+    } catch (error) {
+        console.error('Error leaving global group:', error);
+    }
 }
 
-// Start the app when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
+function subscribeToGroupState() {
+    const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
+    
+    App.unsubscribeGameState = groupRef.onSnapshot(async (snapshot) => {
+        if (!snapshot.exists) {
+            showMessage('Global room does not exist.');
+            return;
+        }
+        
+        const groupData = snapshot.data();
+        const gameState = groupData.gameState;
+        
+        // Check if player is still in the group
+        if (!gameState.players || !gameState.players[App.playerSeat]) {
+            App.isInGroup = false;
+            showMessage('You have been removed from the global room.');
+            return;
+        }
+        
+        // Initialize game if not already done
+        if (gameState.phase !== 'waiting' && !App.game) {
+            App.game = new PokerGame({
+                isMultiplayer: true,
+                groupId: DEFAULT_GROUP_ID,
+                onStateChange: handleGroupStateChange,
+                onActionRequired: handleGroupActionRequired,
+                onGameEnd: handleGroupGameEnd,
+                onMessage: showMessage
+            });
+        }
+        
+        if (App.game) {
+            App.game.updateState(gameState);
+        }
+        
+        // Update players list
+        updatePlayersList(gameState.players);
+        
+        // Check for turn
+        const currentPlayer = gameState.players[gameState.currentPlayerSeat];
+        if (currentPlayer && currentPlayer.id === App.currentUser.uid) {
+            showTurnIndicator(currentPlayer.name);
+        } else {
+            hideTurnIndicator();
+        }
+    });
 }
 
-// Export for debugging
-window.CasinoSim = {
-    state: AppState,
-    dom: DOM,
-    refreshBalance: async () => {
-        if (AppState.currentUser && window.firebaseDb) {
-            AppState.userData = await window.firebaseDb.getUserData(AppState.currentUser.uid);
-            updateBalanceDisplay(AppState.userData.balance);
+// ============================================
+// Game State Handlers
+// ============================================
+function handleGroupStateChange(state) {
+    updatePhaseDisplay(state.phase);
+    updatePotDisplay(state.pot);
+    
+    // Update community cards
+    state.communityCards.forEach((card, index) => {
+        if (DOM.communityCards[index]) {
+            DOM.communityCards[index].textContent = card;
+            DOM.communityCards[index].className = 'card';
+        }
+    });
+    
+    // Update dealer cards
+    state.dealerCards.forEach((card, index) => {
+        if (DOM.dealerCards[index]) {
+            DOM.dealerCards[index].textContent = card;
+            DOM.dealerCards[index].className = 'card';
+        }
+    });
+    
+    // Update player's own cards
+    const playerIndex = state.players.findIndex(p => p.id === App.currentUser.uid);
+    if (playerIndex >= 0) {
+        const player = state.players[playerIndex];
+        if (player.cards) {
+            player.cards.forEach((card, index) => {
+                if (DOM.playerCards[index]) {
+                    DOM.playerCards[index].textContent = card;
+                    DOM.playerCards[index].className = 'card';
+                }
+            });
         }
     }
-};
+    
+    // Update betting controls for current player
+    const currentPlayer = state.players[state.currentPlayerSeat];
+    if (currentPlayer && currentPlayer.id === App.currentUser.uid && !currentPlayer.folded) {
+        const myBet = currentPlayer.currentBet || 0;
+        const maxBet = Math.max(...state.players.map(p => p.currentBet || 0));
+        const canCheck = myBet === maxBet;
+        
+        updateBettingControls(canCheck, myBet, state.minRaise);
+    } else {
+        updateBettingControls(false, 0, 0);
+    }
+}
+
+function handleGroupActionRequired(state) {
+    const currentPlayer = state.players[state.currentPlayerSeat];
+    if (currentPlayer) {
+        showTurnIndicator(currentPlayer.name);
+    }
+}
+
+function handleGroupGameEnd(result) {
+    hideTurnIndicator();
+    
+    let message = '';
+    if (result.winner === App.currentUser.uid) {
+        message = `You won $${result.amount}!`;
+    } else if (result.winnerName) {
+        message = `${result.winnerName} wins $${result.amount}`;
+    } else if (result.winner === 'split') {
+        message = `Split pot! You get $${result.amount}`;
+    }
+    
+    showMessage(message);
+    
+    // Update balance if player won
+    if (result.payouts && result.payouts[App.currentUser.uid]) {
+        updateUserBalance(result.payouts[App.currentUser.uid]);
+    }
+    
+    // Update local balance from server state
+    const player = result.players?.find(p => p.id === App.currentUser.uid);
+    if (player) {
+        App.currentUser.balance = player.balance;
+        updateBalanceDisplay();
+    }
+}
+
+function updatePlayersList(players) {
+    if (!DOM.playersList) return;
+    
+    let html = '<h4>Players Online</h4>';
+    Object.values(players || {}).forEach(player => {
+        const isCurrentPlayer = player.id === App.currentUser.uid;
+        const status = player.folded ? '(Folded)' : (player.isAllIn ? '(All-In)' : '');
+        html += `
+            <div class="player-item ${isCurrentPlayer ? 'current' : ''}">
+                <span>${player.name} ${isCurrentPlayer ? '(You)' : ''} ${status}</span>
+                <span>$${player.balance || 0}</span>
+            </div>
+        `;
+    });
+    
+    DOM.playersList.innerHTML = html;
+}
+
+// ============================================
+// Game Interface Management
+// ============================================
+function showLoginModal() {
+    DOM.loginModal.style.display = 'flex';
+    DOM.gameContainer.style.display = 'none';
+    DOM.authError.textContent = '';
+    DOM.emailInput.value = '';
+    DOM.passwordInput.value = '';
+}
+
+function showGameInterface() {
+    DOM.loginModal.style.display = 'none';
+    DOM.gameContainer.style.display = 'block';
+    DOM.logoutBtn.style.display = 'block';
+    
+    updateBalanceDisplay();
+    
+    // Hide room-specific UI elements
+    if (DOM.playersList) DOM.playersList.style.display = 'block';
+    
+    // Automatically join the global group
+    joinGlobalGroup();
+}
+
+function updateBalanceDisplay() {
+    if (DOM.balanceDisplay) {
+        DOM.balanceDisplay.textContent = `Balance: $${App.currentUser?.balance || 0}`;
+    }
+}
+
+function showAuthError(message) {
+    DOM.authError.textContent = message;
+}
+
+function showMessage(message) {
+    if (DOM.messageCenter) {
+        DOM.messageCenter.innerHTML = `<p>${message}</p>`;
+        DOM.messageCenter.style.display = 'block';
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            DOM.messageCenter.style.display = 'none';
+        }, 5000);
+    }
+}
+
+function updatePhaseDisplay(phase) {
+    if (DOM.phaseIndicator) {
+        const phaseNames = {
+            'preflop': 'Pre-Flop',
+            'flop': 'Flop',
+            'turn': 'Turn',
+            'river': 'River',
+            'showdown': 'Showdown',
+            'waiting': 'Waiting for Players'
+        };
+        DOM.phaseIndicator.textContent = phaseNames[phase] || phase;
+    }
+}
+
+function updatePotDisplay(amount) {
+    if (DOM.potDisplay) {
+        DOM.potDisplay.textContent = `Pot: $${amount || 0}`;
+    }
+}
+
+function updateBettingControls(canCheck, currentBet, minRaise) {
+    if (DOM.checkBtn) {
+        DOM.checkBtn.disabled = !canCheck;
+    }
+    if (DOM.callBtn) {
+        DOM.callBtn.disabled = currentBet === 0;
+    }
+    if (DOM.raiseBtn) {
+        DOM.raiseBtn.disabled = currentBet === 0;
+    }
+    if (DOM.allInBtn) {
+        DOM.allInBtn.disabled = App.currentUser?.balance <= 0;
+    }
+    if (DOM.raiseInput) {
+        DOM.raiseInput.min = minRaise;
+        DOM.raiseInput.placeholder = `Min: $${minRaise}`;
+    }
+}
+
+function showTurnIndicator(playerName) {
+    if (DOM.turnIndicator) {
+        DOM.turnIndicator.textContent = `${playerName}'s Turn`;
+        DOM.turnIndicator.style.display = 'block';
+    }
+}
+
+function hideTurnIndicator() {
+    if (DOM.turnIndicator) {
+        DOM.turnIndicator.style.display = 'none';
+    }
+}
+
+// ============================================
+// Single Player Fallback
+// ============================================
+function startSinglePlayerGame() {
+    App.isMultiplayer = false;
+    
+    // Hide multiplayer UI
+    if (DOM.playersList) DOM.playersList.style.display = 'none';
+    
+    // Initialize the game with AI dealer
+    App.game = new PokerGame({
+        isMultiplayer: false,
+        onStateChange: handleGameStateChange,
+        onActionRequired: handleActionRequired,
+        onGameEnd: handleGameEnd,
+        onMessage: showMessage
+    });
+    
+    App.game.start();
+}
+
+function handleGameStateChange(state) {
+    updatePhaseDisplay(state.phase);
+    updatePotDisplay(state.pot);
+    
+    // Update community cards
+    state.communityCards.forEach((card, index) => {
+        if (DOM.communityCards[index]) {
+            DOM.communityCards[index].textContent = card;
+            DOM.communityCards[index].className = 'card';
+        }
+    });
+    
+    // Update player cards
+    state.playerCards.forEach((card, index) => {
+        if (DOM.playerCards[index]) {
+            DOM.playerCards[index].textContent = card;
+            DOM.playerCards[index].className = 'card';
+        }
+    });
+    
+    // Update dealer cards
+    state.dealerCards.forEach((card, index) => {
+        if (DOM.dealerCards[index]) {
+            DOM.dealerCards[index].textContent = card;
+            DOM.dealerCards[index].className = 'card';
+        }
+    });
+    
+    // Update betting controls
+    updateBettingControls(state.canCheck, state.currentBet, state.minRaise);
+    
+    // Update balance display
+    if (state.playerBalance !== undefined) {
+        App.currentUser.balance = state.playerBalance;
+        updateBalanceDisplay();
+    }
+}
+
+function handleActionRequired(state) {
+    showTurnIndicator(state.currentPlayer);
+    updateBettingControls(state.canCheck, state.currentBet, state.minRaise);
+    
+    // Auto-show dealer cards on showdown
+    if (state.phase === 'showdown') {
+        state.dealerCards.forEach((card, index) => {
+            if (DOM.dealerCards[index]) {
+                DOM.dealerCards[index].textContent = card;
+                DOM.dealerCards[index].className = 'card';
+            }
+        });
+    }
+}
+
+function handleGameEnd(result) {
+    hideTurnIndicator();
+    
+    let message = '';
+    if (result.winner === 'player') {
+        message = `You won $${result.amount}! Your hand: ${result.handDescription}`;
+    } else if (result.winner === 'dealer') {
+        message = `Dealer wins with ${result.handDescription}`;
+    } else if (result.winner === 'split') {
+        message = `Split pot! You get $${result.amount}`;
+    } else if (result.winner === 'fold') {
+        message = `You folded. Dealer wins the pot.`;
+    }
+    
+    showMessage(message);
+    
+    // Update user balance
+    if (result.amount !== undefined) {
+        updateUserBalance(result.amount);
+    }
+    
+    // Start new hand after delay
+    setTimeout(() => {
+        if (App.game && !App.isMultiplayer) {
+            App.game.startNewHand();
+        }
+    }, 3000);
+}
+
+// ============================================
+// Utility Functions
+// ============================================
+function getAuthErrorMessage(errorCode) {
+    const messages = {
+        'auth/email-already-in-use': 'This email is already registered',
+        'auth/invalid-email': 'Invalid email address',
+        'auth/operation-not-allowed': 'Operation not allowed',
+        'auth/weak-password': 'Password is too weak',
+        'auth/user-disabled': 'This account has been disabled',
+        'auth/user-not-found': 'No account found with this email',
+        'auth/wrong-password': 'Incorrect password',
+        'auth/popup-closed-by-user': 'Sign-in popup was closed',
+        'auth/cancelled-popup-request': 'Sign-in was cancelled',
+        'auth/unauthorized-domain': 'This domain is not authorized. Please check Firebase console settings.'
+    };
+    
+    return messages[errorCode] || 'An error occurred. Please try again.';
+}
+
+// ============================================
+// Keyboard Shortcuts
+// ============================================
+document.addEventListener('keydown', (e) => {
+    if (!App.game || App.isMultiplayer) return;
+    
+    switch(e.key.toLowerCase()) {
+        case 'f':
+            App.game.playerAction('fold');
+            break;
+        case 'c':
+            App.game.playerAction('check');
+            break;
+        case 'r':
+            if (DOM.raiseInput) DOM.raiseInput.focus();
+            break;
+        case 'a':
+            App.game.playerAction('allin');
+            break;
+        case 'enter':
+            if (document.activeElement === DOM.raiseInput) {
+                const amount = parseInt(DOM.raiseInput.value) || 0;
+                App.game.playerAction('raise', amount);
+            }
+            break;
+    }
+});
