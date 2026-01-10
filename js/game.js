@@ -1072,7 +1072,9 @@ class PokerGame {
         if (state.currentPlayerSeat !== undefined && this.isMultiplayer) {
             // Check if it's this player's turn
             const players = state.players || {};
-            const currentPlayer = players[state.currentPlayerSeat];
+            // Convert currentPlayerSeat to string since Firestore stores keys as strings
+            const currentPlayerSeatKey = state.currentPlayerSeat.toString();
+            const currentPlayer = players[currentPlayerSeatKey];
             
             if (currentPlayer && !currentPlayer.folded && !currentPlayer.isAllIn) {
                 if (this.onActionRequired) {
