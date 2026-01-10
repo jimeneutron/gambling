@@ -16,7 +16,8 @@ const App = {
     isMultiplayer: false,
     unsubscribeGameState: null,
     playerSeat: -1,
-    isInGroup: false
+    isInGroup: false,
+    dealerSeat: -1  // The player with the dealer button (controls game flow)
 };
 
 // ============================================
@@ -49,6 +50,7 @@ const DOM = {
     betAmountDisplay: null,
     dealerInfo: null,
     turnIndicator: null,
+    startGameBtn: null,  // Button for dealer to start the game
     
     // Multiplayer Elements
     playersList: null,
@@ -111,6 +113,7 @@ function initializeDOMElements() {
     DOM.betAmountDisplay = document.getElementById('betAmountDisplay');
     DOM.dealerInfo = document.getElementById('dealerInfo');
     DOM.turnIndicator = document.getElementById('turnIndicator');
+    DOM.startGameBtn = document.getElementById('startGameBtn');
     
     // Card Elements
     DOM.playerCards = [
@@ -156,6 +159,13 @@ function setupEventListeners() {
         const raiseAmount = parseInt(DOM.raiseInput.value) || 0;
         if (raiseAmount > App.currentUser?.balance) {
             DOM.raiseInput.value = App.currentUser?.balance || 0;
+        }
+    });
+    
+    // Dealer Start Game button
+    DOM.startGameBtn?.addEventListener('click', () => {
+        if (App.playerSeat === App.dealerSeat) {
+            startGameFromDealer();
         }
     });
 }
@@ -431,15 +441,43 @@ async function joinGlobalGroup() {
                     communityCards: [],
                     players: {},
                     dealerCards: []
-                }
+                },
+                dealerSeat: -1  // No dealer yet
             });
             
             // Re-fetch the document after creating it
             groupDoc = await groupRef.get();
         }
         
-        // Find an available seat
         const groupData = groupDoc.data();
+        
+        // Handle dealer assignment
+        const currentDealerSeat = groupData.dealerSeat !== undefined ? groupData.dealerSeat : -1;
+        
+        // If no dealer is assigned, assign this player as dealer
+        if (currentDealerSeat === -1) {
+            // Find an available seat for the dealer
+            const occupiedSeats = Object.keys(groupData?.gameState?.players || {}).map(s => parseInt(s));
+            let dealerSeat = -1;
+            
+            // First player joining becomes dealer
+            if (occupiedSeats.length === 0) {
+                dealerSeat = 0; // Default to seat 0
+            } else {
+                // Use the first occupied seat
+                dealerSeat = occupiedSeats[0];
+            }
+            
+            // Update the dealer seat in Firestore
+            await groupRef.update({ dealerSeat: dealerSeat });
+            App.dealerSeat = dealerSeat;
+            console.log('Assigned as dealer, seat:', dealerSeat);
+        } else {
+            App.dealerSeat = currentDealerSeat;
+            console.log('Current dealer is at seat:', currentDealerSeat);
+        }
+        
+        // Find an available seat for the player
         const occupiedSeats = Object.keys(groupData?.gameState?.players || {}).map(s => parseInt(s));
         let availableSeat = -1;
         
@@ -505,21 +543,38 @@ async function leaveGlobalGroup() {
             
             const playerCount = Object.keys(players).length;
             
+            // Check if the leaving player is the dealer
+            const currentDealerSeat = groupData.dealerSeat !== undefined ? groupData.dealerSeat : -1;
+            const isDealerLeaving = (App.playerSeat === currentDealerSeat);
+            
+            let updateData = {
+                'gameState.players': players
+            };
+            
             if (playerCount === 0) {
                 // Reset the game state if no players left
-                await groupRef.update({
+                updateData = {
                     'gameState.phase': 'waiting',
                     'gameState.pot': 0,
                     'gameState.communityCards': [],
                     'gameState.dealerCards': [],
                     'gameState.players': {},
-                    'gameState.currentPlayerSeat': 0
-                });
-            } else {
-                await groupRef.update({
-                    'gameState.players': players
-                });
+                    'gameState.currentPlayerSeat': 0,
+                    'dealerSeat': -1  // Reset dealer
+                };
+                App.dealerSeat = -1;
+            } else if (isDealerLeaving) {
+                // Rotate dealer to next player
+                const sortedSeats = Object.keys(players).map(s => parseInt(s)).sort((a, b) => a - b);
+                const leavingIndex = sortedSeats.indexOf(App.playerSeat);
+                // Find next seat (wrapping around)
+                const nextSeat = sortedSeats[(leavingIndex) % sortedSeats.length];
+                updateData.dealerSeat = nextSeat;
+                App.dealerSeat = nextSeat;
+                showMessage('Dealer left. Button rotated to next player.');
             }
+            
+            await groupRef.update(updateData);
         }
         
         if (App.unsubscribeGameState) {
@@ -547,8 +602,25 @@ function subscribeToGroupState() {
         
         const groupData = snapshot.data();
         const gameState = groupData.gameState;
+        const dealerSeat = groupData.dealerSeat !== undefined ? groupData.dealerSeat : -1;
         
-        console.log('Game state update:', gameState.phase, 'Players:', Object.keys(gameState.players || {}));
+        // Update local dealer seat if changed
+        if (dealerSeat !== App.dealerSeat) {
+            App.dealerSeat = dealerSeat;
+            console.log('Dealer seat updated to:', dealerSeat);
+        }
+        
+        console.log('Game state update:', gameState.phase, 'Players:', Object.keys(gameState.players || {}), 'Dealer:', dealerSeat);
+        
+        // Check if player is still in the group
+        if (!gameState.players || !gameState.players[App.playerSeat]) {
+            // Only show this message if we were previously in the group
+            if (App.isInGroup) {
+                App.isInGroup = false;
+                showMessage('You have been removed from the global room.');
+            }
+            return;
+        }
         
         // Initialize game regardless of phase
         if (!App.game) {
@@ -576,9 +648,203 @@ function subscribeToGroupState() {
         } else {
             hideTurnIndicator();
         }
+        
+        // Show/hide Start Game button based on dealer status and game phase
+        updateStartGameButton(gameState.phase, dealerSeat);
+        
+        // Handle single player mode (AI dealer)
+        const playerCount = Object.keys(gameState.players || {}).length;
+        if (playerCount === 1 && gameState.phase === 'waiting') {
+            // Single player - auto start with AI dealer
+            startSinglePlayerGame();
+        }
+        
     }, (error) => {
         console.error('Firestore subscription error:', error);
     });
+}
+
+function updateStartGameButton(phase, dealerSeat) {
+    if (!DOM.startGameBtn) return;
+    
+    // Show Start Game button only if:
+    // 1. Game is in 'waiting' phase
+    // 2. Current player is the dealer
+    // 3. There are 2 or more players
+    if (phase === 'waiting' && App.playerSeat === dealerSeat && App.isInGroup) {
+        DOM.startGameBtn.classList.remove('hidden');
+        DOM.startGameBtn.style.display = 'inline-block';
+    } else {
+        DOM.startGameBtn.classList.add('hidden');
+        DOM.startGameBtn.style.display = 'none';
+    }
+}
+
+async function startGameFromDealer() {
+    try {
+        const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
+        const ante = 10; // Default ante
+        
+        // Get current game state
+        const groupDoc = await groupRef.get();
+        const groupData = groupDoc.data();
+        const playerIds = Object.keys(groupData.gameState.players || {});
+        
+        if (playerIds.length < 2) {
+            showMessage('Need at least 2 players to start a multiplayer game.');
+            return;
+        }
+        
+        // Create deck and shuffle
+        const deck = createShuffledDeck();
+        
+        // Deal cards to all players
+        const players = {};
+        const dealerCards = [deck.pop(), deck.pop()];
+        
+        playerIds.forEach(seat => {
+            const playerInfo = groupData.gameState.players[seat];
+            players[seat] = {
+                id: playerInfo.id,
+                name: playerInfo.name,
+                seat: parseInt(seat),
+                balance: playerInfo.balance,
+                cards: [deck.pop(), deck.pop()],
+                currentBet: 0,
+                folded: false,
+                isAllIn: false
+            };
+        });
+        
+        // Determine first player to act (seat after dealer)
+        const dealerSeatNum = parseInt(groupData.dealerSeat);
+        const sortedSeats = playerIds.map(s => parseInt(s)).sort((a, b) => a - b);
+        const dealerIndex = sortedSeats.indexOf(dealerSeatNum);
+        const firstToAct = sortedSeats[(dealerIndex + 1) % sortedSeats.length];
+        
+        // Update game state
+        await groupRef.update({
+            'gameState.phase': 'preflop',
+            'gameState.deck': deck,
+            'gameState.dealerCards': dealerCards,
+            'gameState.players': players,
+            'gameState.pot': ante * playerIds.length,
+            'gameState.communityCards': [],
+            'gameState.currentPlayerSeat': firstToAct,
+            'gameState.minRaise': ante * 2,
+            'gameState.dealerSeat': groupData.dealerSeat  // Keep dealer seat
+        });
+        
+        // Hide start button
+        if (DOM.startGameBtn) {
+            DOM.startGameBtn.classList.add('hidden');
+            DOM.startGameBtn.style.display = 'none';
+        }
+        
+        showMessage('Game started! Good luck!');
+        
+    } catch (error) {
+        console.error('Error starting game from dealer:', error);
+        showMessage('Error starting the game. Please try again.');
+    }
+}
+
+async function rotateDealerButton() {
+    try {
+        const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
+        const groupDoc = await groupRef.get();
+        const groupData = groupDoc.data();
+        
+        const playerSeats = Object.keys(groupData.gameState.players || {}).map(s => parseInt(s)).sort((a, b) => a - b);
+        
+        if (playerSeats.length === 0) {
+            // No players, reset dealer
+            await groupRef.update({ dealerSeat: -1 });
+            App.dealerSeat = -1;
+            return;
+        }
+        
+        // Find next dealer (seat after current dealer)
+        const currentDealer = groupData.dealerSeat !== undefined ? groupData.dealerSeat : playerSeats[0];
+        const currentIndex = playerSeats.indexOf(currentDealer);
+        const nextDealer = playerSeats[(currentIndex + 1) % playerSeats.length];
+        
+        await groupRef.update({ dealerSeat: nextDealer });
+        App.dealerSeat = nextDealer;
+        
+        showMessage(`Dealer button rotated to Player ${nextDealer + 1}`);
+        
+    } catch (error) {
+        console.error('Error rotating dealer button:', error);
+    }
+}
+
+async function handleGroupGameEnd(result) {
+    hideTurnIndicator();
+    
+    let message = '';
+    if (result.winner === App.currentUser.uid) {
+        message = `You won $${result.amount}!`;
+    } else if (result.winnerName) {
+        message = `${result.winnerName} wins $${result.amount}`;
+    } else if (result.winner === 'split') {
+        message = `Split pot! You get $${result.amount}`;
+    }
+    
+    showMessage(message);
+    
+    // Update balance if player won
+    if (result.payouts && result.payouts[App.currentUser.uid]) {
+        await updateUserBalance(result.payouts[App.currentUser.uid]);
+    }
+    
+    // Update local balance from server state
+    const player = result.players?.find(p => p.id === App.currentUser.uid);
+    if (player) {
+        App.currentUser.balance = player.balance;
+        updateBalanceDisplay();
+    }
+    
+    // Rotate dealer button after game ends
+    const playerCount = Object.keys(result.players || {}).length;
+    if (playerCount >= 2) {
+        await rotateDealerButton();
+    }
+}
+            'gameState.phase': 'preflop',
+            'gameState.deck': deck,
+            'gameState.dealerCards': dealerCards,
+            'gameState.players': players,
+            'gameState.pot': ante * playerIds.length,
+            'gameState.communityCards': [],
+            'gameState.currentPlayerSeat': lowestSeat(playerIds),
+            'gameState.minRaise': ante * 2
+        });
+        
+        showMessage('Game started! Good luck!');
+    } catch (error) {
+        console.error('Error starting game:', error);
+    }
+}
+
+function createShuffledDeck() {
+    const deck = [];
+    const suits = ['♠', '♥', '♦', '♣'];
+    const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+    
+    for (const suit of suits) {
+        for (const rank of ranks) {
+            deck.push(rank + suit);
+        }
+    }
+    
+    // Fisher-Yates shuffle
+    for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    
+    return deck;
 }
 
 // ============================================
