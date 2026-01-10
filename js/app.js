@@ -74,8 +74,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
     
-    // Check if Firebase is actually available
-    const isFirebaseReady = window.firebase && typeof window.firebase.auth === 'function';
+    // Check if Firebase is actually available and initialized
+    const isFirebaseReady = window.firebase && 
+                             typeof window.firebase.auth === 'function' &&
+                             typeof window.firebase.firestore === 'function' &&
+                             window.firebase.apps && 
+                             window.firebase.apps.length > 0;
     
     initializeDOMElements();
     setupEventListeners();
@@ -132,6 +136,7 @@ function initializeDOMElements() {
     DOM.betAmountDisplay = document.getElementById('betAmountDisplay');
     DOM.dealerInfo = document.getElementById('dealerInfo');
     DOM.turnIndicator = document.getElementById('turnIndicator');
+    DOM.startGameBtn = document.getElementById('startGameBtn');
     
     // Card Elements
     DOM.playerCards = [
@@ -152,6 +157,7 @@ function initializeDOMElements() {
     
     // Multiplayer Elements
     DOM.playersList = document.getElementById('playersList');
+    DOM.resetRoomBtn = document.getElementById('resetRoomBtn');
 }
 
 // ============================================
@@ -159,26 +165,36 @@ function initializeDOMElements() {
 // ============================================
 function setupEventListeners() {
     // Auth Events
-    DOM.registerBtn.addEventListener('click', handleRegister);
-    DOM.loginBtn.addEventListener('click', handleLogin);
-    DOM.logoutBtn.addEventListener('click', handleLogout);
-    DOM.googleLoginBtn.addEventListener('click', handleGoogleLogin);
-    DOM.emailLoginBtn.addEventListener('click', toggleEmailAuth);
+    DOM.registerBtn?.addEventListener('click', handleRegister);
+    DOM.loginBtn?.addEventListener('click', handleLogin);
+    DOM.logoutBtn?.addEventListener('click', handleLogout);
+    DOM.googleLoginBtn?.addEventListener('click', handleGoogleLogin);
+    DOM.emailLoginBtn?.addEventListener('click', toggleEmailAuth);
     
     // Game Action Events
-    DOM.foldBtn.addEventListener('click', () => App.game?.playerAction('fold'));
-    DOM.checkBtn.addEventListener('click', () => App.game?.playerAction('check'));
-    DOM.callBtn.addEventListener('click', () => App.game?.playerAction('call'));
-    DOM.raiseBtn.addEventListener('click', () => App.game?.playerAction('raise', parseInt(DOM.raiseInput.value) || 0));
-    DOM.allInBtn.addEventListener('click', () => App.game?.playerAction('allin'));
+    DOM.foldBtn?.addEventListener('click', () => App.game?.playerAction('fold'));
+    DOM.checkBtn?.addEventListener('click', () => App.game?.playerAction('check'));
+    DOM.callBtn?.addEventListener('click', () => App.game?.playerAction('call'));
+    DOM.raiseBtn?.addEventListener('click', () => App.game?.playerAction('raise', parseInt(DOM.raiseInput?.value) || 0));
+    DOM.allInBtn?.addEventListener('click', () => App.game?.playerAction('allin'));
     
     // Raise input validation
     DOM.raiseInput?.addEventListener('input', () => {
         const raiseAmount = parseInt(DOM.raiseInput.value) || 0;
-        if (raiseAmount > App.currentUser?.balance) {
+        if (raiseAmount > (App.currentUser?.balance || 0)) {
             DOM.raiseInput.value = App.currentUser?.balance || 0;
         }
     });
+    
+    // Dealer Start Game button
+    DOM.startGameBtn?.addEventListener('click', () => {
+        if (App.playerSeat === App.dealerSeat) {
+            startGameFromDealer();
+        }
+    });
+    
+    // Reset Room button
+    DOM.resetRoomBtn?.addEventListener('click', resetRoom);
 }
 
 // ============================================
@@ -602,6 +618,79 @@ async function leaveGlobalGroup() {
     }
 }
 
+function subscribeToGroupState() {
+    const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
+    
+    App.unsubscribeGameState = groupRef.onSnapshot((snapshot) => {
+        if (!snapshot.exists) {
+            showMessage('Global room does not exist.');
+            return;
+        }
+        
+        const groupData = snapshot.data();
+        const gameState = groupData.gameState;
+        const dealerSeat = groupData.dealerSeat !== undefined ? groupData.dealerSeat : -1;
+        
+        // Update local dealer seat if changed
+        if (dealerSeat !== App.dealerSeat) {
+            App.dealerSeat = dealerSeat;
+            console.log('Dealer seat updated to:', dealerSeat);
+        }
+        
+        console.log('Game state update:', gameState.phase, 'Players:', Object.keys(gameState.players || {}), 'Dealer:', dealerSeat);
+        
+        // Check if player is still in the group
+        if (!gameState.players || !gameState.players[App.playerSeat]) {
+            // Only show this message if we were previously in the group
+            if (App.isInGroup) {
+                App.isInGroup = false;
+                showMessage('You have been removed from the global room.');
+            }
+            return;
+        }
+        
+        // Initialize game regardless of phase
+        if (!App.game) {
+            App.game = new PokerGame({
+                isMultiplayer: true,
+                groupId: DEFAULT_GROUP_ID,
+                onStateChange: handleGroupStateChange,
+                onActionRequired: handleGroupActionRequired,
+                onGameEnd: handleGroupGameEnd,
+                onMessage: showMessage
+            });
+        }
+        
+        if (App.game) {
+            App.game.updateState(gameState);
+        }
+        
+        // Update players list
+        updatePlayersList(gameState.players);
+        
+        // Check for turn
+        const currentPlayer = gameState.players?.[gameState.currentPlayerSeat];
+        if (currentPlayer && currentPlayer.id === App.currentUser.uid) {
+            showTurnIndicator(currentPlayer.name);
+        } else {
+            hideTurnIndicator();
+        }
+        
+        // Show/hide Start Game button based on dealer status and game phase
+        updateStartGameButton(gameState.phase, dealerSeat);
+        
+        // Handle single player mode (AI dealer)
+        const playerCount = Object.keys(gameState.players || {}).length;
+        if (playerCount === 1 && gameState.phase === 'waiting') {
+            // Single player - auto start with AI dealer
+            startSinglePlayerGame();
+        }
+        
+    }, (error) => {
+        console.error('Firestore subscription error:', error);
+    });
+}
+
 function updateStartGameButton(phase, dealerSeat) {
     if (!DOM.startGameBtn) return;
     
@@ -717,39 +806,6 @@ async function rotateDealerButton() {
     }
 }
 
-async function handleGroupGameEnd(result) {
-    hideTurnIndicator();
-    
-    let message = '';
-    if (result.winner === App.currentUser.uid) {
-        message = `You won $${result.amount}!`;
-    } else if (result.winnerName) {
-        message = `${result.winnerName} wins $${result.amount}`;
-    } else if (result.winner === 'split') {
-        message = `Split pot! You get $${result.amount}`;
-    }
-    
-    showMessage(message);
-    
-    // Update balance if player won
-    if (result.payouts && result.payouts[App.currentUser.uid]) {
-        await updateUserBalance(result.payouts[App.currentUser.uid]);
-    }
-    
-    // Update local balance from server state
-    const player = result.players?.find(p => p.id === App.currentUser.uid);
-    if (player) {
-        App.currentUser.balance = player.balance;
-        updateBalanceDisplay();
-    }
-    
-    // Rotate dealer button after game ends
-    const playerCount = Object.keys(result.players || {}).length;
-    if (playerCount >= 2) {
-        await rotateDealerButton();
-    }
-}
-
 function createShuffledDeck() {
     const deck = [];
     const suits = ['♠', '♥', '♦', '♣'];
@@ -768,79 +824,6 @@ function createShuffledDeck() {
     }
     
     return deck;
-}
-
-function subscribeToGroupState() {
-    const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
-    
-    App.unsubscribeGameState = groupRef.onSnapshot((snapshot) => {
-        if (!snapshot.exists) {
-            showMessage('Global room does not exist.');
-            return;
-        }
-        
-        const groupData = snapshot.data();
-        const gameState = groupData.gameState;
-        const dealerSeat = groupData.dealerSeat !== undefined ? groupData.dealerSeat : -1;
-        
-        // Update local dealer seat if changed
-        if (dealerSeat !== App.dealerSeat) {
-            App.dealerSeat = dealerSeat;
-            console.log('Dealer seat updated to:', dealerSeat);
-        }
-        
-        console.log('Game state update:', gameState.phase, 'Players:', Object.keys(gameState.players || {}), 'Dealer:', dealerSeat);
-        
-        // Check if player is still in the group
-        if (!gameState.players || !gameState.players[App.playerSeat]) {
-            // Only show this message if we were previously in the group
-            if (App.isInGroup) {
-                App.isInGroup = false;
-                showMessage('You have been removed from the global room.');
-            }
-            return;
-        }
-        
-        // Initialize game regardless of phase
-        if (!App.game) {
-            App.game = new PokerGame({
-                isMultiplayer: true,
-                groupId: DEFAULT_GROUP_ID,
-                onStateChange: handleGroupStateChange,
-                onActionRequired: handleGroupActionRequired,
-                onGameEnd: handleGroupGameEnd,
-                onMessage: showMessage
-            });
-        }
-        
-        if (App.game) {
-            App.game.updateState(gameState);
-        }
-        
-        // Update players list
-        updatePlayersList(gameState.players);
-        
-        // Check for turn
-        const currentPlayer = gameState.players?.[gameState.currentPlayerSeat];
-        if (currentPlayer && currentPlayer.id === App.currentUser.uid) {
-            showTurnIndicator(currentPlayer.name);
-        } else {
-            hideTurnIndicator();
-        }
-        
-        // Show/hide Start Game button based on dealer status and game phase
-        updateStartGameButton(gameState.phase, dealerSeat);
-        
-        // Handle single player mode (AI dealer)
-        const playerCount = Object.keys(gameState.players || {}).length;
-        if (playerCount === 1 && gameState.phase === 'waiting') {
-            // Single player - auto start with AI dealer
-            startSinglePlayerGame();
-        }
-        
-    }, (error) => {
-        console.error('Firestore subscription error:', error);
-    });
 }
 
 // ============================================
@@ -866,12 +849,14 @@ function handleGroupStateChange(state) {
         }
     });
     
+    // Convert players object to array for iteration
+    const playersArray = Object.values(state.players || {});
+
     // Update player's own cards
-    const playerIndex = state.players.findIndex(p => p.id === App.currentUser.uid);
-    if (playerIndex >= 0) {
-        const player = state.players[playerIndex];
-        if (player.cards) {
-            player.cards.forEach((card, index) => {
+    const playerData = playersArray.find(p => p.id === App.currentUser.uid);
+    if (playerData) {
+        if (playerData.cards) {
+            playerData.cards.forEach((card, index) => {
                 if (DOM.playerCards[index]) {
                     DOM.playerCards[index].textContent = card;
                     DOM.playerCards[index].className = 'card';
@@ -879,12 +864,12 @@ function handleGroupStateChange(state) {
             });
         }
     }
-    
+
     // Update betting controls for current player
     const currentPlayer = state.players[state.currentPlayerSeat];
     if (currentPlayer && currentPlayer.id === App.currentUser.uid && !currentPlayer.folded) {
         const myBet = currentPlayer.currentBet || 0;
-        const maxBet = Math.max(...state.players.map(p => p.currentBet || 0));
+        const maxBet = Math.max(...playersArray.map(p => p.currentBet || 0));
         const canCheck = myBet === maxBet;
         
         updateBettingControls(canCheck, myBet, state.minRaise);
@@ -897,39 +882,6 @@ function handleGroupActionRequired(state) {
     const currentPlayer = state.players[state.currentPlayerSeat];
     if (currentPlayer) {
         showTurnIndicator(currentPlayer.name);
-    }
-}
-
-async function handleGroupGameEnd(result) {
-    hideTurnIndicator();
-    
-    let message = '';
-    if (result.winner === App.currentUser.uid) {
-        message = `You won $${result.amount}!`;
-    } else if (result.winnerName) {
-        message = `${result.winnerName} wins $${result.amount}`;
-    } else if (result.winner === 'split') {
-        message = `Split pot! You get $${result.amount}`;
-    }
-    
-    showMessage(message);
-    
-    // Update balance if player won
-    if (result.payouts && result.payouts[App.currentUser.uid]) {
-        await updateUserBalance(result.payouts[App.currentUser.uid]);
-    }
-    
-    // Update local balance from server state
-    const player = result.players?.find(p => p.id === App.currentUser.uid);
-    if (player) {
-        App.currentUser.balance = player.balance;
-        updateBalanceDisplay();
-    }
-    
-    // Rotate dealer button after game ends
-    const playerCount = Object.keys(result.players || {}).length;
-    if (playerCount >= 2) {
-        await rotateDealerButton();
     }
 }
 
@@ -1133,6 +1085,56 @@ function showTurnIndicator(playerName) {
 function hideTurnIndicator() {
     if (DOM.turnIndicator) {
         DOM.turnIndicator.style.display = 'none';
+    }
+}
+
+// ============================================
+// Reset Room Function
+// ============================================
+async function resetRoom() {
+    if (!confirm('Are you sure you want to reset the room? This will clear all players and restart the game.')) {
+        return;
+    }
+    
+    try {
+        const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
+        
+        // Reset the entire room state
+        await groupRef.set({
+            name: 'Global Poker Room',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            gameState: {
+                phase: 'waiting',
+                pot: 0,
+                communityCards: [],
+                players: {},
+                dealerCards: []
+            },
+            dealerSeat: -1
+        }, { merge: true });
+        
+        // Reset local state
+        App.isInGroup = false;
+        App.isMultiplayer = false;
+        App.playerSeat = -1;
+        App.dealerSeat = -1;
+        App.game = null;
+        
+        if (App.unsubscribeGameState) {
+            App.unsubscribeGameState();
+            App.unsubscribeGameState = null;
+        }
+        
+        showMessage('Room has been reset. Please rejoin.');
+        
+        // Automatically rejoin
+        setTimeout(() => {
+            joinGlobalGroup();
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Error resetting room:', error);
+        showMessage('Error resetting room. Please try again.');
     }
 }
 
