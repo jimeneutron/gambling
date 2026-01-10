@@ -723,8 +723,26 @@ function showGameInterface() {
     // Show game app with aggressive styling
     if (DOM.gameApp) {
         console.log('Found gameApp, showing it');
+        
+        // Remove hidden class and prevent it from being added back
         DOM.gameApp.classList.remove('hidden');
-        DOM.gameApp.style.display = 'flex !important';
+        
+        // Create a MutationObserver to watch for class changes
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                    if (DOM.gameApp.classList.contains('hidden')) {
+                        console.log('Warning: hidden class was added, removing it');
+                        DOM.gameApp.classList.remove('hidden');
+                    }
+                }
+            });
+        });
+        
+        observer.observe(DOM.gameApp, { attributes: true });
+        
+        // Set display properties
+        DOM.gameApp.style.display = 'flex';
         DOM.gameApp.style.visibility = 'visible';
         DOM.gameApp.style.opacity = '1';
         DOM.gameApp.style.zIndex = '1';
@@ -732,7 +750,7 @@ function showGameInterface() {
         // Force show all game elements for debugging
         const gameContainer = document.querySelector('.game-container');
         if (gameContainer) {
-            gameContainer.style.display = 'flex !important';
+            gameContainer.style.display = 'flex';
         }
         
         const pokerTable = document.querySelector('.poker-table');
@@ -749,6 +767,7 @@ function showGameInterface() {
             console.log('gameApp height:', computedStyle.height);
             console.log('gameApp visibility:', computedStyle.visibility);
             console.log('gameApp opacity:', computedStyle.opacity);
+            console.log('gameApp classList:', DOM.gameApp.classList.toString());
             console.log('gameApp actual visibility:', DOM.gameApp.style.visibility);
             console.log('gameApp actual display:', DOM.gameApp.style.display);
         }, 100);
