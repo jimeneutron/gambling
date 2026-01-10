@@ -254,7 +254,7 @@ async function handleLogout() {
 async function loadUserData(uid) {
     try {
         const userDoc = await firebase.firestore().collection('users').doc(uid).get();
-        const userEmail = DOM.emailInput.value;
+        const userEmail = App.currentUser?.email || DOM.emailInput?.value || 'Player';
         
         if (userDoc.exists) {
             const userData = userDoc.data();
@@ -591,17 +591,17 @@ function updatePlayersList(players) {
 // Game Interface Management
 // ============================================
 function showLoginModal() {
-    DOM.loginModal.style.display = 'flex';
-    DOM.gameApp.style.display = 'none';
-    DOM.authError.textContent = '';
-    DOM.emailInput.value = '';
-    DOM.passwordInput.value = '';
+    if (DOM.loginModal) DOM.loginModal.style.display = 'flex';
+    if (DOM.gameApp) DOM.gameApp.style.display = 'none';
+    if (DOM.authError) DOM.authError.textContent = '';
+    if (DOM.emailInput) DOM.emailInput.value = '';
+    if (DOM.passwordInput) DOM.passwordInput.value = '';
 }
 
 function showGameInterface() {
-    DOM.loginModal.style.display = 'none';
-    DOM.gameApp.style.display = 'block';
-    DOM.logoutBtn.style.display = 'block';
+    if (DOM.loginModal) DOM.loginModal.style.display = 'none';
+    if (DOM.gameApp) DOM.gameApp.style.display = 'block';
+    if (DOM.logoutBtn) DOM.logoutBtn.style.display = 'block';
     
     updateBalanceDisplay();
     
@@ -619,7 +619,7 @@ function updateBalanceDisplay() {
 }
 
 function showAuthError(message) {
-    DOM.authError.textContent = message;
+    if (DOM.authError) DOM.authError.textContent = message;
 }
 
 function showMessage(message) {
