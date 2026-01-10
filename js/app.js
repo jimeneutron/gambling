@@ -47,7 +47,6 @@ const DOM = {
     raiseInput: null,
     balanceDisplay: null,
     betAmountDisplay: null,
-    dealerInfo: null,
     turnIndicator: null,
     startGameBtn: null,
     resetRoomBtn: null,
@@ -58,7 +57,7 @@ const DOM = {
 };
 
 // Initialize on page load
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', async function() {
     initializeDOMElements();
     setupEventListeners();
     
@@ -72,14 +71,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     // Check if Firebase is ready
-    const isFirebaseReady = window.firebase && 
-                             typeof window.firebase.auth === 'function' &&
-                             typeof window.firebase.firestore === 'function' &&
-                             window.firebase.apps?.length > 0;
+    var isFirebaseReady = window.firebase && 
+                          typeof window.firebase.auth === 'function' &&
+                          typeof window.firebase.firestore === 'function' &&
+                          window.firebase.apps && 
+                          window.firebase.apps.length > 0;
     
     if (isFirebaseReady) {
         setupFirebaseAuth();
-        const user = firebase.auth().currentUser;
+        var user = firebase.auth().currentUser;
         if (user) {
             await loadUserData(user.uid);
         } else {
@@ -124,51 +124,52 @@ function initializeDOMElements() {
     DOM.playersList = document.getElementById('playersList');
     
     // Card elements
-    DOM.playerCards = [
-        document.getElementById('playerCard0'),
-        document.getElementById('playerCard1')
-    ];
-    DOM.communityCards = [
-        document.getElementById('communityCard0'),
-        document.getElementById('communityCard1'),
-        document.getElementById('communityCard2'),
-        document.getElementById('communityCard3'),
-        document.getElementById('communityCard4')
-    ];
-    DOM.dealerCards = [
-        document.getElementById('dealerCard0'),
-        document.getElementById('dealerCard1')
-    ];
+    DOM.playerCards[0] = document.getElementById('playerCard0');
+    DOM.playerCards[1] = document.getElementById('playerCard1');
+    DOM.communityCards[0] = document.getElementById('communityCard0');
+    DOM.communityCards[1] = document.getElementById('communityCard1');
+    DOM.communityCards[2] = document.getElementById('communityCard2');
+    DOM.communityCards[3] = document.getElementById('communityCard3');
+    DOM.communityCards[4] = document.getElementById('communityCard4');
+    DOM.dealerCards[0] = document.getElementById('dealerCard0');
+    DOM.dealerCards[1] = document.getElementById('dealerCard1');
 }
 
 function setupEventListeners() {
     // Auth events
-    DOM.registerBtn?.addEventListener('click', handleRegister);
-    DOM.loginBtn?.addEventListener('click', handleLogin);
-    DOM.logoutBtn?.addEventListener('click', handleLogout);
-    DOM.googleLoginBtn?.addEventListener('click', handleGoogleLogin);
-    DOM.emailLoginBtn?.addEventListener('click', toggleEmailAuth);
+    if (DOM.registerBtn) DOM.registerBtn.addEventListener('click', handleRegister);
+    if (DOM.loginBtn) DOM.loginBtn.addEventListener('click', handleLogin);
+    if (DOM.logoutBtn) DOM.logoutBtn.addEventListener('click', handleLogout);
+    if (DOM.googleLoginBtn) DOM.googleLoginBtn.addEventListener('click', handleGoogleLogin);
+    if (DOM.emailLoginBtn) DOM.emailLoginBtn.addEventListener('click', toggleEmailAuth);
     
     // Game action events
-    DOM.foldBtn?.addEventListener('click', () => App.game?.playerAction('fold'));
-    DOM.checkBtn?.addEventListener('click', () => App.game?.playerAction('check'));
-    DOM.callBtn?.addEventListener('click', () => App.game?.playerAction('call'));
-    DOM.raiseBtn?.addEventListener('click', () => App.game?.playerAction('raise', parseInt(DOM.raiseInput?.value) || 0));
-    DOM.allInBtn?.addEventListener('click', () => App.game?.playerAction('allin'));
-    
-    DOM.raiseInput?.addEventListener('input', () => {
-        const raiseAmount = parseInt(DOM.raiseInput.value) || 0;
-        if (raiseAmount > (App.currentUser?.balance || 0)) {
-            DOM.raiseInput.value = App.currentUser?.balance || 0;
+    if (DOM.foldBtn) DOM.foldBtn.addEventListener('click', function() { if (App.game) App.game.playerAction('fold'); });
+    if (DOM.checkBtn) DOM.checkBtn.addEventListener('click', function() { if (App.game) App.game.playerAction('check'); });
+    if (DOM.callBtn) DOM.callBtn.addEventListener('click', function() { if (App.game) App.game.playerAction('call'); });
+    if (DOM.raiseBtn) DOM.raiseBtn.addEventListener('click', function() { 
+        if (App.game && DOM.raiseInput) {
+            var amount = parseInt(DOM.raiseInput.value) || 0;
+            App.game.playerAction('raise', amount);
         }
     });
+    if (DOM.allInBtn) DOM.allInBtn.addEventListener('click', function() { if (App.game) App.game.playerAction('allin'); });
+    
+    if (DOM.raiseInput) {
+        DOM.raiseInput.addEventListener('input', function() {
+            var raiseAmount = parseInt(DOM.raiseInput.value) || 0;
+            if (raiseAmount > (App.currentUser && App.currentUser.balance ? App.currentUser.balance : 0)) {
+                DOM.raiseInput.value = App.currentUser && App.currentUser.balance ? App.currentUser.balance : 0;
+            }
+        });
+    }
     
     // Dealer button
-    DOM.startGameBtn?.addEventListener('click', startGameFromDealer);
-    DOM.resetRoomBtn?.addEventListener('click', resetRoom);
+    if (DOM.startGameBtn) DOM.startGameBtn.addEventListener('click', startGameFromDealer);
+    if (DOM.resetRoomBtn) DOM.resetRoomBtn.addEventListener('click', resetRoom);
     
     // Keyboard shortcuts (single-player only)
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener('keydown', function(e) {
         if (!App.game || App.isMultiplayer) return;
         
         switch(e.key.toLowerCase()) {
@@ -181,7 +182,7 @@ function setupEventListeners() {
 
 // Firebase Authentication
 function setupFirebaseAuth() {
-    firebase.auth().onAuthStateChanged(async (user) => {
+    firebase.auth().onAuthStateChanged(async function(user) {
         if (user && user.emailVerified) {
             await loadUserData(user.uid);
         } else {
@@ -191,8 +192,8 @@ function setupFirebaseAuth() {
 }
 
 async function handleRegister() {
-    const email = DOM.emailInput.value;
-    const password = DOM.passwordInput.value;
+    var email = DOM.emailInput ? DOM.emailInput.value : '';
+    var password = DOM.passwordInput ? DOM.passwordInput.value : '';
     
     if (!email || !password) {
         showAuthError('Please enter both email and password');
@@ -200,7 +201,7 @@ async function handleRegister() {
     }
     
     try {
-        const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
+        var userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
         await firebase.auth().currentUser.sendEmailVerification();
         showMessage('Registration successful! Please check your email to verify.');
         await firebase.auth().signOut();
@@ -210,11 +211,11 @@ async function handleRegister() {
 }
 
 async function handleLogin() {
-    const email = DOM.emailInput.value;
-    const password = DOM.passwordInput.value;
+    var email = DOM.emailInput ? DOM.emailInput.value : '';
+    var password = DOM.passwordInput ? DOM.passwordInput.value : '';
     
     try {
-        const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
+        var userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
         if (!userCredential.user.emailVerified) {
             showAuthError('Please verify your email before logging in');
             await firebase.auth().signOut();
@@ -228,9 +229,9 @@ async function handleLogin() {
 
 async function handleGoogleLogin() {
     try {
-        const provider = new firebase.auth.GoogleAuthProvider();
+        var provider = new firebase.auth.GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
-        const userCredential = await firebase.auth().signInWithPopup(provider);
+        var userCredential = await firebase.auth().signInWithPopup(provider);
         if (!userCredential.user.emailVerified) {
             showAuthError('Please verify your Google email before logging in');
             await firebase.auth().signOut();
@@ -243,7 +244,9 @@ async function handleGoogleLogin() {
 }
 
 function toggleEmailAuth() {
-    DOM.emailAuthSection?.classList.toggle('hidden');
+    if (DOM.emailAuthSection) {
+        DOM.emailAuthSection.classList.toggle('hidden');
+    }
 }
 
 async function handleLogout() {
@@ -270,10 +273,10 @@ async function loadUserData(uid) {
     }
     
     try {
-        const userDoc = await firebase.firestore().collection('users').doc(uid.trim()).get();
+        var userDoc = await firebase.firestore().collection('users').doc(uid.trim()).get();
         
         if (userDoc.exists) {
-            const data = userDoc.data();
+            var data = userDoc.data();
             App.currentUser = {
                 uid: uid.trim(),
                 email: data.email || 'Player',
@@ -283,7 +286,7 @@ async function loadUserData(uid) {
             };
         } else {
             // Create new user
-            const userEmail = DOM.emailInput?.value || 'Player';
+            var userEmail = (DOM.emailInput && DOM.emailInput.value) ? DOM.emailInput.value : 'Player';
             App.currentUser = {
                 uid: uid.trim(),
                 email: userEmail,
@@ -323,8 +326,8 @@ async function joinGlobalGroup() {
     if (App.isInGroup) return;
     
     try {
-        const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
-        let groupDoc = await groupRef.get();
+        var groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
+        var groupDoc = await groupRef.get();
         
         if (!groupDoc.exists) {
             // Create global group
@@ -343,11 +346,11 @@ async function joinGlobalGroup() {
             groupDoc = await groupRef.get();
         }
         
-        const groupData = groupDoc.data();
-        const players = groupData.gameState?.players || {};
+        var groupData = groupDoc.data();
+        var players = groupData.gameState ? groupData.gameState.players : {};
         
         // Handle dealer assignment
-        let currentDealerSeat = groupData.dealerSeat !== undefined ? groupData.dealerSeat : -1;
+        var currentDealerSeat = groupData.dealerSeat !== undefined ? groupData.dealerSeat : -1;
         
         if (currentDealerSeat === -1) {
             // First player becomes dealer
@@ -357,11 +360,11 @@ async function joinGlobalGroup() {
         App.dealerSeat = currentDealerSeat;
         
         // Find available seat
-        const occupiedSeats = Object.keys(players).map(s => parseInt(s));
-        let availableSeat = -1;
+        var occupiedSeats = Object.keys(players).map(function(s) { return parseInt(s); });
+        var availableSeat = -1;
         
-        for (let i = 0; i < 6; i++) {
-            if (!occupiedSeats.includes(i)) {
+        for (var i = 0; i < 6; i++) {
+            if (occupiedSeats.indexOf(i) === -1) {
                 availableSeat = i;
                 break;
             }
@@ -375,7 +378,7 @@ async function joinGlobalGroup() {
         App.playerSeat = availableSeat;
         
         // Add player
-        const playerData = {
+        var playerData = {
             id: App.currentUser.uid,
             name: App.currentUser.email.split('@')[0],
             seat: availableSeat,
@@ -385,14 +388,15 @@ async function joinGlobalGroup() {
             isAllIn: false
         };
         
-        await groupRef.update({
-            [`gameState.players.${availableSeat}`]: playerData
-        });
+        var updateData = {};
+        updateData['gameState.players.' + availableSeat] = playerData;
+        
+        await groupRef.update(updateData);
         
         App.isInGroup = true;
         App.isMultiplayer = true;
         
-        showMessage(`Joined the global poker room!`);
+        showMessage('Joined the global poker room!');
         subscribeToGroupState();
         
     } catch (error) {
@@ -405,22 +409,22 @@ async function leaveGlobalGroup() {
     if (!App.isInGroup) return;
     
     try {
-        const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
-        const groupDoc = await groupRef.get();
+        var groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
+        var groupDoc = await groupRef.get();
         
         if (groupDoc.exists) {
-            const groupData = groupDoc.data();
-            const players = { ...groupData.gameState?.players };
+            var groupData = groupDoc.data();
+            var players = Object.assign({}, groupData.gameState ? groupData.gameState.players : {});
             
             // Remove player using string key
-            const playerSeatKey = App.playerSeat.toString();
+            var playerSeatKey = App.playerSeat.toString();
             delete players[playerSeatKey];
             
-            const playerCount = Object.keys(players).length;
-            const currentDealerSeat = groupData.dealerSeat !== undefined ? groupData.dealerSeat : -1;
-            const isDealerLeaving = (App.playerSeat === currentDealerSeat);
+            var playerCount = Object.keys(players).length;
+            var currentDealerSeat = groupData.dealerSeat !== undefined ? groupData.dealerSeat : -1;
+            var isDealerLeaving = (App.playerSeat === currentDealerSeat);
             
-            let updateData = { 'gameState.players': players };
+            var updateData = { 'gameState.players': players };
             
             if (playerCount === 0) {
                 // Reset room
@@ -435,9 +439,9 @@ async function leaveGlobalGroup() {
                 App.dealerSeat = -1;
             } else if (isDealerLeaving) {
                 // Rotate dealer
-                const sortedSeats = Object.keys(players).map(s => parseInt(s)).sort((a, b) => a - b);
-                const leavingIndex = sortedSeats.indexOf(App.playerSeat);
-                const nextSeat = sortedSeats[(leavingIndex) % sortedSeats.length];
+                var sortedSeats = Object.keys(players).map(function(s) { return parseInt(s); }).sort(function(a, b) { return a - b; });
+                var leavingIndex = sortedSeats.indexOf(App.playerSeat);
+                var nextSeat = sortedSeats[(leavingIndex) % sortedSeats.length];
                 updateData.dealerSeat = nextSeat;
                 App.dealerSeat = nextSeat;
             }
@@ -460,16 +464,16 @@ async function leaveGlobalGroup() {
 }
 
 function subscribeToGroupState() {
-    const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
+    var groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
     
-    App.unsubscribeGameState = groupRef.onSnapshot((snapshot) => {
+    App.unsubscribeGameState = groupRef.onSnapshot(function(snapshot) {
         if (!snapshot.exists) {
             showMessage('Room does not exist.');
             return;
         }
         
-        const groupData = snapshot.data();
-        const gameState = groupData.gameState;
+        var groupData = snapshot.data();
+        var gameState = groupData.gameState;
         
         // Update dealer seat
         if (groupData.dealerSeat !== undefined && groupData.dealerSeat !== App.dealerSeat) {
@@ -477,7 +481,7 @@ function subscribeToGroupState() {
         }
         
         // Check if player is still in the room
-        const playerSeatKey = App.playerSeat.toString();
+        var playerSeatKey = App.playerSeat.toString();
         if (!gameState.players || !gameState.players[playerSeatKey]) {
             if (App.isInGroup) {
                 App.isInGroup = false;
@@ -505,8 +509,8 @@ function subscribeToGroupState() {
         // Update UI
         updatePlayersList(gameState.players);
         
-        const currentPlayerKey = gameState.currentPlayerSeat?.toString();
-        const currentPlayer = gameState.players?.[currentPlayerKey];
+        var currentPlayerKey = gameState.currentPlayerSeat ? gameState.currentPlayerSeat.toString() : '';
+        var currentPlayer = gameState.players ? gameState.players[currentPlayerKey] : null;
         if (currentPlayer && currentPlayer.id === App.currentUser.uid) {
             showTurnIndicator(currentPlayer.name);
         } else {
@@ -516,12 +520,12 @@ function subscribeToGroupState() {
         updateStartGameButton(gameState.phase);
         
         // Single player fallback
-        const playerCount = Object.keys(gameState.players || {}).length;
+        var playerCount = gameState.players ? Object.keys(gameState.players).length : 0;
         if (playerCount === 1 && gameState.phase === 'waiting') {
             startSinglePlayerGame();
         }
         
-    }, (error) => {
+    }, function(error) {
         console.error('Firestore error:', error);
     });
 }
@@ -540,23 +544,23 @@ function updateStartGameButton(phase) {
 
 async function startGameFromDealer() {
     try {
-        const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
-        const groupDoc = await groupRef.get();
-        const groupData = groupDoc.data();
+        var groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
+        var groupDoc = await groupRef.get();
+        var groupData = groupDoc.data();
         
-        const playerIds = Object.keys(groupData.gameState.players || {});
+        var playerIds = Object.keys(groupData.gameState.players || {});
         
         if (playerIds.length < 2) {
             showMessage('Need at least 2 players to start.');
             return;
         }
         
-        const deck = createShuffledDeck();
-        const dealerCards = [deck.pop(), deck.pop()];
+        var deck = createShuffledDeck();
+        var dealerCards = [deck.pop(), deck.pop()];
         
-        const players = {};
-        playerIds.forEach(seat => {
-            const playerInfo = groupData.gameState.players[seat];
+        var players = {};
+        playerIds.forEach(function(seat) {
+            var playerInfo = groupData.gameState.players[seat];
             players[seat] = {
                 id: playerInfo.id,
                 name: playerInfo.name,
@@ -570,10 +574,10 @@ async function startGameFromDealer() {
         });
         
         // Determine first player (seat after dealer)
-        const dealerSeatNum = parseInt(groupData.dealerSeat);
-        const sortedSeats = playerIds.map(s => parseInt(s)).sort((a, b) => a - b);
-        const dealerIndex = sortedSeats.indexOf(dealerSeatNum);
-        const firstToAct = sortedSeats[(dealerIndex + 1) % sortedSeats.length];
+        var dealerSeatNum = parseInt(groupData.dealerSeat);
+        var sortedSeats = playerIds.map(function(s) { return parseInt(s); }).sort(function(a, b) { return a - b; });
+        var dealerIndex = sortedSeats.indexOf(dealerSeatNum);
+        var firstToAct = sortedSeats[(dealerIndex + 1) % sortedSeats.length];
         
         await groupRef.update({
             'gameState.phase': 'preflop',
@@ -601,7 +605,7 @@ async function resetRoom() {
     if (!confirm('Reset the room? All players will be removed.')) return;
     
     try {
-        const groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
+        var groupRef = firebase.firestore().collection('groups').doc(DEFAULT_GROUP_ID);
         
         await groupRef.set({
             name: 'Global Poker Room',
@@ -628,7 +632,7 @@ async function resetRoom() {
         }
         
         showMessage('Room has been reset.');
-        setTimeout(() => joinGlobalGroup(), 1000);
+        setTimeout(function() { joinGlobalGroup(); }, 1000);
         
     } catch (error) {
         console.error('Error resetting room:', error);
@@ -636,20 +640,22 @@ async function resetRoom() {
 }
 
 function createShuffledDeck() {
-    const suits = ['♠', '♥', '♦', '♣'];
-    const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-    const deck = [];
+    var suits = ['♠', '♥', '♦', '♣'];
+    var ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+    var deck = [];
     
-    for (const suit of suits) {
-        for (const rank of ranks) {
-            deck.push(rank + suit);
+    for (var s = 0; s < suits.length; s++) {
+        for (var r = 0; r < ranks.length; r++) {
+            deck.push(ranks[r] + suits[s]);
         }
     }
     
     // Fisher-Yates shuffle
-    for (let i = deck.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [deck[i], deck[j]] = [deck[j], deck[i]];
+    for (var i = deck.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var temp = deck[i];
+        deck[i] = deck[j];
+        deck[j] = temp;
     }
     
     return deck;
@@ -661,27 +667,37 @@ function handleGroupStateChange(state) {
     updatePotDisplay(state.pot);
     
     // Community cards
-    state.communityCards?.forEach((card, index) => {
-        if (DOM.communityCards[index]) {
-            DOM.communityCards[index].textContent = card;
-            DOM.communityCards[index].className = 'card';
-        }
-    });
+    if (state.communityCards) {
+        state.communityCards.forEach(function(card, index) {
+            if (DOM.communityCards[index]) {
+                DOM.communityCards[index].textContent = card;
+                DOM.communityCards[index].className = 'card';
+            }
+        });
+    }
     
     // Dealer cards
-    state.dealerCards?.forEach((card, index) => {
-        if (DOM.dealerCards[index]) {
-            DOM.dealerCards[index].textContent = card;
-            DOM.dealerCards[index].className = 'card';
-        }
-    });
+    if (state.dealerCards) {
+        state.dealerCards.forEach(function(card, index) {
+            if (DOM.dealerCards[index]) {
+                DOM.dealerCards[index].textContent = card;
+                DOM.dealerCards[index].className = 'card';
+            }
+        });
+    }
     
     // Player's own cards
-    const playersArray = Object.values(state.players || {});
-    const myPlayer = playersArray.find(p => p.id === App.currentUser?.uid);
+    var playersArray = Object.values(state.players || {});
+    var myPlayer = null;
+    for (var i = 0; i < playersArray.length; i++) {
+        if (playersArray[i].id === (App.currentUser && App.currentUser.uid)) {
+            myPlayer = playersArray[i];
+            break;
+        }
+    }
     
-    if (myPlayer?.cards) {
-        myPlayer.cards.forEach((card, index) => {
+    if (myPlayer && myPlayer.cards) {
+        myPlayer.cards.forEach(function(card, index) {
             if (DOM.playerCards[index]) {
                 DOM.playerCards[index].textContent = card;
                 DOM.playerCards[index].className = 'card';
@@ -690,13 +706,16 @@ function handleGroupStateChange(state) {
     }
     
     // Betting controls
-    const currentPlayerKey = state.currentPlayerSeat?.toString();
-    const currentPlayer = state.players?.[currentPlayerKey];
+    var currentPlayerKey = state.currentPlayerSeat ? state.currentPlayerSeat.toString() : '';
+    var currentPlayer = state.players ? state.players[currentPlayerKey] : null;
     
-    if (currentPlayer && currentPlayer.id === App.currentUser?.uid && !currentPlayer.folded) {
-        const myBet = currentPlayer.currentBet || 0;
-        const maxBet = Math.max(...playersArray.map(p => p.currentBet || 0));
-        const canCheck = myBet === maxBet;
+    if (currentPlayer && currentPlayer.id === (App.currentUser && App.currentUser.uid) && !currentPlayer.folded) {
+        var myBet = currentPlayer.currentBet || 0;
+        var maxBet = 0;
+        playersArray.forEach(function(p) {
+            if ((p.currentBet || 0) > maxBet) maxBet = p.currentBet || 0;
+        });
+        var canCheck = myBet === maxBet;
         updateBettingControls(canCheck, myBet, state.minRaise);
     } else {
         updateBettingControls(false, 0, 0);
@@ -704,8 +723,8 @@ function handleGroupStateChange(state) {
 }
 
 function handleGroupActionRequired(state) {
-    const currentPlayerKey = state.currentPlayerSeat?.toString();
-    const currentPlayer = state.players?.[currentPlayerKey];
+    var currentPlayerKey = state.currentPlayerSeat ? state.currentPlayerSeat.toString() : '';
+    var currentPlayer = state.players ? state.players[currentPlayerKey] : null;
     if (currentPlayer) {
         showTurnIndicator(currentPlayer.name);
     }
@@ -716,13 +735,13 @@ function handleGroupGameEnd(result) {
     
     if (!result) return;
     
-    let message = '';
+    var message = '';
     if (result.winner === 'player') {
-        message = `You won $${result.amount}!`;
+        message = 'You won $' + result.amount + '!';
     } else if (result.winner === 'dealer') {
-        message = `Dealer wins.`;
+        message = 'Dealer wins.';
     } else if (result.winner === 'split') {
-        message = `Split pot! You get $${result.amount}`;
+        message = 'Split pot! You get $' + result.amount;
     }
     
     if (message) {
@@ -758,26 +777,32 @@ function handleSinglePlayerStateChange(state) {
     updatePhaseDisplay(state.phase);
     updatePotDisplay(state.pot);
     
-    state.communityCards?.forEach((card, index) => {
-        if (DOM.communityCards[index]) {
-            DOM.communityCards[index].textContent = card;
-            DOM.communityCards[index].className = 'card';
-        }
-    });
+    if (state.communityCards) {
+        state.communityCards.forEach(function(card, index) {
+            if (DOM.communityCards[index]) {
+                DOM.communityCards[index].textContent = card;
+                DOM.communityCards[index].className = 'card';
+            }
+        });
+    }
     
-    state.playerCards?.forEach((card, index) => {
-        if (DOM.playerCards[index]) {
-            DOM.playerCards[index].textContent = card;
-            DOM.playerCards[index].className = 'card';
-        }
-    });
+    if (state.playerCards) {
+        state.playerCards.forEach(function(card, index) {
+            if (DOM.playerCards[index]) {
+                DOM.playerCards[index].textContent = card;
+                DOM.playerCards[index].className = 'card';
+            }
+        });
+    }
     
-    state.dealerCards?.forEach((card, index) => {
-        if (DOM.dealerCards[index]) {
-            DOM.dealerCards[index].textContent = card;
-            DOM.dealerCards[index].className = 'card';
-        }
-    });
+    if (state.dealerCards) {
+        state.dealerCards.forEach(function(card, index) {
+            if (DOM.dealerCards[index]) {
+                DOM.dealerCards[index].textContent = card;
+                DOM.dealerCards[index].className = 'card';
+            }
+        });
+    }
     
     updateBettingControls(state.canCheck, state.currentBet, state.minRaise);
     
@@ -791,8 +816,8 @@ function handleSinglePlayerActionRequired(state) {
     showTurnIndicator(state.currentPlayer || 'You');
     updateBettingControls(state.canCheck, state.currentBet, state.minRaise);
     
-    if (state.phase === 'showdown') {
-        state.dealerCards?.forEach((card, index) => {
+    if (state.phase === 'showdown' && state.dealerCards) {
+        state.dealerCards.forEach(function(card, index) {
             if (DOM.dealerCards[index]) {
                 DOM.dealerCards[index].textContent = card;
                 DOM.dealerCards[index].className = 'card';
@@ -804,15 +829,15 @@ function handleSinglePlayerActionRequired(state) {
 function handleSinglePlayerGameEnd(result) {
     hideTurnIndicator();
     
-    let message = '';
+    var message = '';
     if (result.winner === 'player') {
-        message = `You won $${result.amount}! Your hand: ${result.handDescription}`;
+        message = 'You won $' + result.amount + '! Your hand: ' + result.handDescription;
     } else if (result.winner === 'dealer') {
-        message = `Dealer wins with ${result.handDescription}`;
+        message = 'Dealer wins with ' + result.handDescription;
     } else if (result.winner === 'split') {
-        message = `Split pot! You get $${result.amount}`;
+        message = 'Split pot! You get $' + result.amount;
     } else if (result.winner === 'fold') {
-        message = `You folded. Dealer wins.`;
+        message = 'You folded. Dealer wins.';
     }
     
     showMessage(message);
@@ -821,7 +846,7 @@ function handleSinglePlayerGameEnd(result) {
         updateUserBalance(result.amount);
     }
     
-    setTimeout(() => {
+    setTimeout(function() {
         if (App.game && !App.isMultiplayer) {
             App.game.startNewHand();
         }
@@ -850,37 +875,48 @@ async function updateUserBalance(amount) {
 function updatePlayersList(players) {
     if (!DOM.playersList) return;
     
-    let html = '<h4>Players Online</h4>';
-    Object.values(players || {}).forEach(player => {
-        const isCurrentPlayer = player.id === App.currentUser?.uid;
-        const status = player.folded ? '(Folded)' : (player.isAllIn ? '(All-In)' : '');
-        html += `
-            <div class="player-item ${isCurrentPlayer ? 'current' : ''}">
-                <span>${player.name} ${isCurrentPlayer ? '(You)' : ''} ${status}</span>
-                <span>$${player.balance || 0}</span>
-            </div>
-        `;
+    var html = '<h4>Players Online</h4>';
+    var playersArr = Object.values(players || {});
+    playersArr.forEach(function(player) {
+        var isCurrentPlayer = player.id === (App.currentUser && App.currentUser.uid);
+        var status = player.folded ? '(Folded)' : (player.isAllIn ? '(All-In)' : '');
+        html += 
+            '<div class="player-item ' + (isCurrentPlayer ? 'current' : '') + '">' +
+            '<span>' + player.name + ' ' + (isCurrentPlayer ? '(You)' : '') + ' ' + status + '</span>' +
+            '<span>$' + (player.balance || 0) + '</span>' +
+            '</div>';
     });
     DOM.playersList.innerHTML = html;
 }
 
 // UI Functions
 function showLoginModal() {
-    DOM.loginModal?.classList.remove('hidden');
-    DOM.loginModal?.style.display = 'flex';
-    DOM.gameApp?.classList.add('hidden');
-    DOM.gameApp?.style.display = 'none';
-    DOM.authError && (DOM.authError.textContent = '');
-    DOM.emailInput && (DOM.emailInput.value = '');
-    DOM.passwordInput && (DOM.passwordInput.value = '');
+    if (DOM.loginModal) {
+        DOM.loginModal.classList.remove('hidden');
+        DOM.loginModal.style.display = 'flex';
+    }
+    if (DOM.gameApp) {
+        DOM.gameApp.classList.add('hidden');
+        DOM.gameApp.style.display = 'none';
+    }
+    if (DOM.authError) {
+        DOM.authError.textContent = '';
+        DOM.authError.style.display = 'none';
+    }
+    if (DOM.emailInput) DOM.emailInput.value = '';
+    if (DOM.passwordInput) DOM.passwordInput.value = '';
 }
 
 function showGameInterface() {
-    DOM.loginModal?.classList.add('hidden');
-    DOM.loginModal?.style.display = 'none';
-    DOM.gameApp?.classList.remove('hidden');
-    DOM.gameApp?.style.display = 'flex';
-    DOM.logoutBtn && (DOM.logoutBtn.style.display = 'block');
+    if (DOM.loginModal) {
+        DOM.loginModal.classList.add('hidden');
+        DOM.loginModal.style.display = 'none';
+    }
+    if (DOM.gameApp) {
+        DOM.gameApp.classList.remove('hidden');
+        DOM.gameApp.style.display = 'flex';
+    }
+    if (DOM.logoutBtn) DOM.logoutBtn.style.display = 'block';
     
     updateBalanceDisplay();
     joinGlobalGroup();
@@ -888,7 +924,7 @@ function showGameInterface() {
 
 function updateBalanceDisplay() {
     if (DOM.balanceDisplay) {
-        DOM.balanceDisplay.textContent = `Balance: $${App.currentUser?.balance || 0}`;
+        DOM.balanceDisplay.textContent = 'Balance: $' + (App.currentUser && App.currentUser.balance ? App.currentUser.balance : 0);
     }
 }
 
@@ -902,10 +938,10 @@ function showAuthError(message) {
 
 function showMessage(message) {
     if (DOM.messageCenter) {
-        DOM.messageCenter.innerHTML = `<p>${message}</p>`;
+        DOM.messageCenter.innerHTML = '<p>' + message + '</p>';
         DOM.messageCenter.style.display = 'block';
         
-        setTimeout(() => {
+        setTimeout(function() {
             DOM.messageCenter.style.display = 'none';
         }, 5000);
     }
@@ -913,7 +949,7 @@ function showMessage(message) {
 
 function updatePhaseDisplay(phase) {
     if (DOM.phaseText) {
-        const phaseNames = {
+        var phaseNames = {
             'preflop': 'Pre-Flop',
             'flop': 'Flop',
             'turn': 'Turn',
@@ -927,7 +963,7 @@ function updatePhaseDisplay(phase) {
 
 function updatePotDisplay(amount) {
     if (DOM.potDisplay) {
-        DOM.potDisplay.textContent = `Pot: $${amount || 0}`;
+        DOM.potDisplay.textContent = 'Pot: $' + (amount || 0);
     }
 }
 
@@ -935,16 +971,16 @@ function updateBettingControls(canCheck, currentBet, minRaise) {
     if (DOM.checkBtn) DOM.checkBtn.disabled = !canCheck;
     if (DOM.callBtn) DOM.callBtn.disabled = currentBet === 0;
     if (DOM.raiseBtn) DOM.raiseBtn.disabled = currentBet === 0;
-    if (DOM.allInBtn) DOM.allInBtn.disabled = (App.currentUser?.balance || 0) <= 0;
+    if (DOM.allInBtn) DOM.allInBtn.disabled = (App.currentUser && App.currentUser.balance ? App.currentUser.balance : 0) <= 0;
     if (DOM.raiseInput) {
         DOM.raiseInput.min = minRaise;
-        DOM.raiseInput.placeholder = `Min: $${minRaise}`;
+        DOM.raiseInput.placeholder = 'Min: $' + minRaise;
     }
 }
 
 function showTurnIndicator(playerName) {
     if (DOM.turnIndicator) {
-        DOM.turnIndicator.textContent = `${playerName}'s Turn`;
+        DOM.turnIndicator.textContent = playerName + "'s Turn";
         DOM.turnIndicator.style.display = 'block';
     }
 }
@@ -956,7 +992,7 @@ function hideTurnIndicator() {
 }
 
 function getAuthErrorMessage(errorCode) {
-    const messages = {
+    var messages = {
         'auth/email-already-in-use': 'This email is already registered',
         'auth/invalid-email': 'Invalid email address',
         'auth/weak-password': 'Password is too weak',
