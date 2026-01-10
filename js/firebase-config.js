@@ -19,23 +19,14 @@
 // ============================================
 
 const firebaseConfig = {
-
-  apiKey: "AIzaSyAORZOnXK_g7lCiW2q56o8G0gdwC2JUjXE",
-
-  authDomain: "jimmygamblez.firebaseapp.com",
-
-  projectId: "jimmygamblez",
-
-  storageBucket: "jimmygamblez.firebasestorage.app",
-
-  messagingSenderId: "460694639672",
-
-  appId: "1:460694639672:web:30a08507b41f521ecac2cd",
-
-  measurementId: "G-GR7GJH2P8J"
-
+    apiKey: "AIzaSyAORZOnXK_g7lCiW2q56o8G0gdwC2JUjXE",
+    authDomain: "jimmygamblez.firebaseapp.com",
+    projectId: "jimmygamblez",
+    storageBucket: "jimmygamblez.firebasestorage.app",
+    messagingSenderId: "460694639672",
+    appId: "1:460694639672:web:30a08507b41f521ecac2cd",
+    measurementId: "G-GR7GJH2P8J"
 };
-
 
 // ============================================
 // INITIALIZE FIREBASE
@@ -50,7 +41,7 @@ function isConfigValid() {
     // Check if API key is set properly
     return firebaseConfig.apiKey && 
            firebaseConfig.apiKey !== "YOUR_API_KEY_HERE" && 
-           firebaseConfig.apiKey.length > 30;
+           firebaseConfig.apiKey.length > 10;
 }
 
 // Function to load a script dynamically
@@ -167,7 +158,7 @@ async function signInAsGuest() {
     }
     
     try {
-        const result = await auth.signInAnonymously(auth);
+        const result = await auth.signInAnonymously();
         console.log('Anonymous sign-in successful:', result.user.uid);
         return result.user;
     } catch (error) {
