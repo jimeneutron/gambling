@@ -19,14 +19,23 @@
 // ============================================
 
 const firebaseConfig = {
-    apiKey: "AIzaSyAORZOnXK_g7lCiW2q56o8G0gdwC2JUjXE",
-    authDomain: "jimmygamblez.firebaseapp.com",
-    projectId: "jimmygamblez",
-    storageBucket: "jimmygamblez.firebasestorage.app",
-    messagingSenderId: "460694639672",
-    appId: "1:460694639672:web:30a08507b41f521ecac2cd",
-    measurementId: "G-GR7GJH2P8J"
+
+  apiKey: "AIzaSyAORZOnXK_g7lCiW2q56o8G0gdwC2JUjXE",
+
+  authDomain: "jimmygamblez.firebaseapp.com",
+
+  projectId: "jimmygamblez",
+
+  storageBucket: "jimmygamblez.firebasestorage.app",
+
+  messagingSenderId: "460694639672",
+
+  appId: "1:460694639672:web:30a08507b41f521ecac2cd",
+
+  measurementId: "G-GR7GJH2P8J"
+
 };
+
 
 // ============================================
 // INITIALIZE FIREBASE
