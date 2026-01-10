@@ -1043,3 +1043,57 @@ window.renderPoker = {
     createCardElement,
     createCardBack
 };
+
+// ============================================
+// POKER GAME CLASS (for Multiplayer)
+// ============================================
+
+class PokerGame {
+    constructor(options = {}) {
+        this.isMultiplayer = options.isMultiplayer || false;
+        this.groupId = options.groupId || null;
+        this.onStateChange = options.onStateChange || (() => {});
+        this.onActionRequired = options.onActionRequired || (() => {});
+        this.onGameEnd = options.onGameEnd || (() => {});
+        this.onMessage = options.onMessage || (() => {});
+        
+        this.currentState = null;
+    }
+    
+    updateState(state) {
+        this.currentState = state;
+        
+        // Notify about state change
+        if (this.onStateChange) {
+            this.onStateChange(state);
+        }
+        
+        // Check if action is required
+        if (state.currentPlayerSeat !== undefined && this.isMultiplayer) {
+            // Check if it's this player's turn
+            const players = state.players || {};
+            const currentPlayer = players[state.currentPlayerSeat];
+            
+            if (currentPlayer && !currentPlayer.folded && !currentPlayer.isAllIn) {
+                if (this.onActionRequired) {
+                    this.onActionRequired(state);
+                }
+            }
+        }
+    }
+    
+    playerAction(action, amount = 0) {
+        // For multiplayer, actions are handled through Firestore
+        // This is a placeholder for any client-side actions
+        if (this.onMessage) {
+            this.onMessage(`${action}${amount > 0 ? ' $' + amount : ''}`);
+        }
+    }
+    
+    cleanup() {
+        this.currentState = null;
+    }
+}
+
+// Export to window
+window.PokerGame = PokerGame;
