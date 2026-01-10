@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Check for saved session
     const user = firebase.auth().currentUser;
     if (user) {
-        await loadUserData(user);
+        await loadUserData(user.uid);  // Pass user.uid, not the user object
     } else {
         showLoginModal();
     }
@@ -162,7 +162,8 @@ function setupFirebaseAuth() {
     firebase.auth().onAuthStateChanged(async (user) => {
         if (user) {
             if (user.emailVerified) {
-                await loadUserData(user);
+                // Pass user.uid, not the entire user object
+                await loadUserData(user.uid);
             } else {
                 showMessage('Please verify your email to play. Check your inbox for the verification link.');
                 await firebase.auth().signOut();
@@ -253,29 +254,48 @@ async function handleLogout() {
 
 async function loadUserData(uid) {
     try {
-        const userDoc = await firebase.firestore().collection('users').doc(uid).get();
-        const userEmail = App.currentUser?.email || DOM.emailInput?.value || 'Player';
+        // Validate uid is a non-empty string
+        if (!uid || typeof uid !== 'string' || uid.trim() === '') {
+            console.error('Invalid uid:', uid);
+            if (DOM.authError) {
+                DOM.authError.textContent = 'Invalid user ID. Please sign in again.';
+                DOM.authError.style.display = 'block';
+            }
+            return;
+        }
+        
+        // Use the email from the current user if already set (from Google login)
+        const userEmail = App.currentUser?.email || 
+                         (DOM.emailInput?.value && DOM.emailInput.value.trim() !== '' ? DOM.emailInput.value : 'Player');
+        
+        const userDoc = await firebase.firestore().collection('users').doc(uid.trim()).get();
         
         if (userDoc.exists) {
             const userData = userDoc.data();
+            // Safely handle potential undefined values
+            const userBalance = typeof userData.balance === 'number' ? userData.balance : 1000;
+            
             App.currentUser = {
-                uid: uid,
+                uid: uid.trim(),
                 email: userEmail,
-                balance: userData.balance || 1000,
+                balance: userBalance,
                 totalWinnings: userData.totalWinnings || 0,
                 gamesPlayed: userData.gamesPlayed || 0
             };
         } else {
             // Create user data if it doesn't exist
-            await saveUserData(uid, {
+            const newUserData = {
                 email: userEmail,
                 balance: 1000,
                 totalWinnings: 0,
                 gamesPlayed: 0,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            };
+            
+            await saveUserData(uid.trim(), newUserData);
+            
             App.currentUser = {
-                uid: uid,
+                uid: uid.trim(),
                 email: userEmail,
                 balance: 1000,
                 totalWinnings: 0,
@@ -286,13 +306,24 @@ async function loadUserData(uid) {
         showGameInterface();
     } catch (error) {
         console.error('Error loading user data:', error);
-        showAuthError('Error loading account data. Please try again.');
+        // Show error safely - handle null authError
+        if (DOM.authError) {
+            DOM.authError.textContent = 'Error loading account data. Please try again.';
+            DOM.authError.style.display = 'block';
+        } else {
+            alert('Error loading account data. Please try again.');
+        }
     }
 }
 
 async function saveUserData(uid, data) {
     try {
-        await firebase.firestore().collection('users').doc(uid).set(data, { merge: true });
+        // Validate uid before using with Firestore
+        if (!uid || typeof uid !== 'string' || uid.trim() === '') {
+            console.error('Invalid uid for saveUserData:', uid);
+            return;
+        }
+        await firebase.firestore().collection('users').doc(uid.trim()).set(data, { merge: true });
     } catch (error) {
         console.error('Error saving user data:', error);
     }
@@ -591,9 +622,15 @@ function updatePlayersList(players) {
 // Game Interface Management
 // ============================================
 function showLoginModal() {
+    // Safely show login modal
     if (DOM.loginModal) DOM.loginModal.style.display = 'flex';
     if (DOM.gameApp) DOM.gameApp.style.display = 'none';
-    if (DOM.authError) DOM.authError.textContent = '';
+    
+    // Clear form fields safely
+    if (DOM.authError) {
+        DOM.authError.textContent = '';
+        DOM.authError.style.display = 'none';
+    }
     if (DOM.emailInput) DOM.emailInput.value = '';
     if (DOM.passwordInput) DOM.passwordInput.value = '';
 }
@@ -619,7 +656,13 @@ function updateBalanceDisplay() {
 }
 
 function showAuthError(message) {
-    if (DOM.authError) DOM.authError.textContent = message;
+    // Safely show error message
+    if (DOM.authError) {
+        DOM.authError.textContent = message;
+        DOM.authError.style.display = 'block';
+    }
+    // Also log to console for debugging
+    console.warn('Auth error:', message);
 }
 
 function showMessage(message) {
@@ -836,4 +879,3 @@ document.addEventListener('keydown', (e) => {
             break;
     }
 });
- 
