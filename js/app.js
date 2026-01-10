@@ -658,7 +658,7 @@ function updatePlayersList(players) {
 function showLoginModal() {
     // Safely show login modal
     if (DOM.loginModal) DOM.loginModal.style.display = 'flex';
-    if (DOM.gameApp) DOM.gameApp.style.display = 'none';
+    if (DOM.gameApp) DOM.gameApp.style.display = 'flex';
     
     // Clear form fields safely
     if (DOM.authError) {
