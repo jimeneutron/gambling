@@ -230,14 +230,23 @@ function handleLoginError(error) {
     } else if (error.code === 'auth/operation-not-allowed') {
         message = 'This sign-in method is not enabled. Please configure Firebase Authentication.';
     } else if (error.message && error.message.includes('Firebase Auth not initialized')) {
-        message = 'Firebase not configured. Playing in Demo Mode - click "Play as Guest" to continue.';
+        message = 'Firebase not configured. Playing in Demo Mode.';
         // Auto-switch to demo mode
         handleLoginSuccess({ displayName: 'Demo Player', uid: 'demo-' + Date.now() });
         return;
+    } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        message = 'Invalid email or password.';
+    } else if (error.code === 'auth/email-already-in-use') {
+        message = 'This email is already registered. Please login instead.';
+    } else if (error.code === 'auth/weak-password') {
+        message = 'Password should be at least 6 characters.';
+    } else if (error.message && error.message.includes('verify your email')) {
+        message = error.message;
     }
     
     alert(message);
 }
+
 
 async function signInWithGoogle() {
     showLoading();
@@ -253,18 +262,55 @@ async function signInWithGoogle() {
     }
 }
 
-async function signInAsGuest() {
+
+function toggleEmailAuth() {
+    DOM.emailAuthSection.classList.toggle('hidden');
+    DOM.googleLoginBtn.classList.toggle('hidden');
+}
+
+async function handleEmailAuth(authType) {
+    const email = DOM.emailInput.value.trim();
+    const password = DOM.passwordInput.value;
+    
+    if (!email || !password) {
+        showMessage('Please enter email and password', 'lose');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showMessage('Password must be at least 6 characters', 'lose');
+        return;
+    }
+    
     showLoading();
+    
     try {
-        if (window.firebaseAuth && window.firebaseAuth.isFirebaseReady()) {
-            const user = await window.firebaseAuth.signInAsGuest();
-            await handleLoginSuccess(user);
+        let user;
+        
+        if (authType === 'register') {
+            user = await window.firebaseAuth.registerWithEmail(email, password);
+            alert('Account created! Please check your email and click the verification link before logging in.');
+            toggleEmailAuth();
+            DOM.emailInput.value = '';
+            DOM.passwordInput.value = '';
+            hideLoading();
+            return;
         } else {
-            // Demo mode - no Firebase
-            await handleLoginSuccess({ displayName: 'Guest Player', uid: 'guest-' + Date.now() });
+            user = await window.firebaseAuth.signInWithEmail(email, password);
         }
+        
+        await handleLoginSuccess(user);
     } catch (error) {
         handleLoginError(error);
+    }
+}
+
+async function resendVerificationEmail() {
+    try {
+        await window.firebaseAuth.resendVerificationEmail();
+        alert('Verification email sent! Please check your inbox.');
+    } catch (error) {
+        alert('Error: ' + error.message);
     }
 }
 
@@ -609,9 +655,15 @@ function handleBetSliderChange() {
 
 function initEventListeners() {
     DOM.googleLoginBtn.addEventListener('click', signInWithGoogle);
-    DOM.anonymousLoginBtn.addEventListener('click', signInAsGuest);
+    DOM.emailLoginBtn.addEventListener('click', toggleEmailAuth);
+    DOM.registerBtn.addEventListener('click', () => handleEmailAuth('register'));
+    DOM.loginBtn.addEventListener('click', () => handleEmailAuth('login'));
+    DOM.sendVerificationBtn.addEventListener('click', resendVerificationEmail);
     DOM.logoutBtn.addEventListener('click', logoutUser);
     
+    // ... keep all other event listeners the same ...
+}
+
     DOM.buyInButtons.forEach(btn => {
         btn.addEventListener('click', handleBuyInClick);
     });
