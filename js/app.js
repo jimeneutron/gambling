@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Check for saved session
     const user = firebase.auth().currentUser;
     if (user) {
-        await handleAuthSuccess(user);
+        await loadUserData(user);
     } else {
         showLoginModal();
     }
@@ -93,7 +93,7 @@ function initializeDOMElements() {
     DOM.authError = document.getElementById('authError');
     
     // Game Elements
-    DOM.gameContainer = document.getElementById('gameContainer');
+    DOM.gameApp = document.getElementById('gameApp');
     DOM.potDisplay = document.getElementById('potDisplay');
     DOM.phaseIndicator = document.getElementById('phaseIndicator');
     DOM.messageCenter = document.getElementById('messageCenter');
@@ -162,7 +162,7 @@ function setupFirebaseAuth() {
     firebase.auth().onAuthStateChanged(async (user) => {
         if (user) {
             if (user.emailVerified) {
-                await handleAuthSuccess(user);
+                await loadUserData(user);
             } else {
                 showMessage('Please verify your email to play. Check your inbox for the verification link.');
                 await firebase.auth().signOut();
@@ -592,7 +592,7 @@ function updatePlayersList(players) {
 // ============================================
 function showLoginModal() {
     DOM.loginModal.style.display = 'flex';
-    DOM.gameContainer.style.display = 'none';
+    DOM.gameApp.style.display = 'none';
     DOM.authError.textContent = '';
     DOM.emailInput.value = '';
     DOM.passwordInput.value = '';
@@ -600,7 +600,7 @@ function showLoginModal() {
 
 function showGameInterface() {
     DOM.loginModal.style.display = 'none';
-    DOM.gameContainer.style.display = 'block';
+    DOM.gameApp.style.display = 'block';
     DOM.logoutBtn.style.display = 'block';
     
     updateBalanceDisplay();
