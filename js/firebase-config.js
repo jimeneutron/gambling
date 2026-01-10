@@ -15,25 +15,6 @@
  */
 
 // ============================================
-// FIREBASE SDK IMPORTS (CDN)
-// ============================================
-
-// Firebase App (the core Firebase SDK)
-const firebaseAppScript = document.createElement('script');
-firebaseAppScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js';
-document.head.appendChild(firebaseAppScript);
-
-// Firebase Auth
-const firebaseAuthScript = document.createElement('script');
-firebaseAuthScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js';
-document.head.appendChild(firebaseAuthScript);
-
-// Firebase Firestore
-const firebaseFirestoreScript = document.createElement('script');
-firebaseFirestoreScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js';
-document.head.appendChild(firebaseFirestoreScript);
-
-// ============================================
 // FIREBASE CONFIGURATION - REPLACE THESE VALUES
 // ============================================
 
@@ -48,6 +29,17 @@ const firebaseConfig = {
 };
 
 // ============================================
+// FIREBASE SDK IMPORTS (CDN)
+// ============================================
+
+// Load Firebase SDKs synchronously
+if (typeof firebase === 'undefined') {
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"><\/script>');
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"><\/script>');
+    document.write('<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"><\/script>');
+}
+
+// ============================================
 // INITIALIZE FIREBASE
 // ============================================
 
@@ -57,15 +49,15 @@ let db = null;
 let firebaseReady = false;
 
 function isConfigValid() {
-    return firebaseConfig.apiKey !== "YOUR_API_KEY_HERE" && 
-           firebaseConfig.apiKey !== "" &&
-           firebaseConfig.apiKey !== null;
+    // Check if API key is set properly
+    return firebaseConfig.apiKey && 
+           firebaseConfig.apiKey !== "YOUR_API_KEY_HERE" && 
+           firebaseConfig.apiKey.length > 30;
 }
 
-function initFirebase() {
+function initializeFirebase() {
     if (!isConfigValid()) {
-        console.warn('⚠️ Firebase config not set. Running in demo mode.');
-        console.warn('⚠️ To enable Firebase, update js/firebase-config.js with your API keys.');
+        console.warn('Firebase config not set. Running in demo mode.');
         return;
     }
     
@@ -75,38 +67,39 @@ function initFirebase() {
             auth = firebase.auth(app);
             db = firebase.firestore(app);
             firebaseReady = true;
-            console.log('✅ Firebase initialized successfully');
+            console.log('Firebase initialized successfully');
         } else {
-            console.warn('⚠️ Firebase SDK not loaded yet. Waiting...');
+            console.warn('Firebase SDK not loaded');
         }
     } catch (error) {
-        console.error('❌ Firebase initialization failed:', error.message);
-        console.warn('⚠️ Running in demo mode without Firebase.');
+        console.error('Firebase initialization failed:', error.message);
     }
 }
 
-// Wait for Firebase scripts to load, then initialize
-function waitForFirebase() {
-    return new Promise((resolve) => {
-        let attempts = 0;
-        const maxAttempts = 50;
-        
-        const checkFirebase = () => {
-            attempts++;
-            if (typeof firebase !== 'undefined') {
-                initFirebase();
-                resolve();
-            } else if (attempts < maxAttempts) {
-                setTimeout(checkFirebase, 100);
-            } else {
-                console.warn('⚠️ Firebase SDK failed to load. Running in demo mode.');
+// Initialize Firebase immediately
+initializeFirebase();
+
+// Create a promise that resolves when Firebase is ready
+window.firebaseReadyPromise = new Promise((resolve) => {
+    if (firebaseReady) {
+        resolve();
+    } else {
+        // Wait for Firebase to be ready
+        const checkInterval = setInterval(() => {
+            if (firebaseReady) {
+                clearInterval(checkInterval);
                 resolve();
             }
-        };
+        }, 100);
         
-        checkFirebase();
-    });
-}
+        // Timeout after 10 seconds
+        setTimeout(() => {
+            clearInterval(checkInterval);
+            console.warn('Firebase initialization timeout');
+            resolve();
+        }, 10000);
+    }
+});
 
 // ============================================
 // AUTHENTICATION FUNCTIONS
@@ -124,10 +117,10 @@ async function signInWithGoogle() {
     
     try {
         const result = await auth.signInWithPopup(provider);
-        console.log('✅ Google sign-in successful:', result.user.displayName);
+        console.log('Google sign-in successful:', result.user.displayName);
         return result.user;
     } catch (error) {
-        console.error('❌ Google sign-in error:', error.code, error.message);
+        console.error('Google sign-in error:', error.code, error.message);
         throw error;
     }
 }
@@ -139,10 +132,10 @@ async function signInAsGuest() {
     
     try {
         const result = await auth.signInAnonymously(auth);
-        console.log('✅ Anonymous sign-in successful:', result.user.uid);
+        console.log('Anonymous sign-in successful:', result.user.uid);
         return result.user;
     } catch (error) {
-        console.error('❌ Anonymous sign-in error:', error.code, error.message);
+        console.error('Anonymous sign-in error:', error.code, error.message);
         throw error;
     }
 }
@@ -154,16 +147,16 @@ async function logoutUser() {
     
     try {
         await auth.signOut();
-        console.log('✅ User signed out successfully');
+        console.log('User signed out successfully');
     } catch (error) {
-        console.error('❌ Sign-out error:', error.code, error.message);
+        console.error('Sign-out error:', error.code, error.message);
         throw error;
     }
 }
 
 function onAuthChange(callback) {
     if (!auth) {
-        console.warn('⚠️ Auth listener not available in demo mode');
+        console.warn('Auth listener not available');
         return () => {};
     }
     
@@ -179,7 +172,7 @@ const DEFAULT_BALANCE = 1000;
 
 async function getUserData(uid) {
     if (!db) {
-        console.log('🎮 Demo mode: Using local data');
+        console.log('Demo mode: Using local data');
         return {
             uid,
             balance: DEFAULT_BALANCE,
@@ -198,7 +191,7 @@ async function getUserData(uid) {
         
         if (userSnap.exists) {
             const data = userSnap.data();
-            console.log('✅ User data retrieved:', data.displayName || data.uid);
+            console.log('User data retrieved:', data.displayName || data.uid);
             return data;
         } else {
             const newUserData = {
@@ -215,7 +208,7 @@ async function getUserData(uid) {
             };
             
             await userRef.set(newUserData);
-            console.log('✅ New user document created');
+            console.log('New user document created');
             
             return {
                 ...newUserData,
@@ -224,14 +217,14 @@ async function getUserData(uid) {
             };
         }
     } catch (error) {
-        console.error('❌ Error getting user data:', error.code, error.message);
+        console.error('Error getting user data:', error.code, error.message);
         throw error;
     }
 }
 
 async function updateUserBalance(uid, newBalance) {
     if (!db) {
-        console.log(`🎮 Demo mode: Balance updated to $${newBalance}`);
+        console.log('Demo mode: Balance updated to $' + newBalance);
         return;
     }
     
@@ -241,16 +234,16 @@ async function updateUserBalance(uid, newBalance) {
             balance: newBalance,
             lastPlayed: firebase.firestore.FieldValue.serverTimestamp()
         });
-        console.log('✅ Balance updated:', newBalance);
+        console.log('Balance updated:', newBalance);
     } catch (error) {
-        console.error('❌ Error updating balance:', error.code, error.message);
+        console.error('Error updating balance:', error.code, error.message);
         throw error;
     }
 }
 
 function subscribeToUserData(uid, callback) {
     if (!db) {
-        console.warn('⚠️ Real-time updates not available in demo mode');
+        console.warn('Real-time updates not available in demo mode');
         return () => {};
     }
     
@@ -261,17 +254,17 @@ function subscribeToUserData(uid, callback) {
                 callback(docSnap.data());
             }
         }, (error) => {
-            console.error('❌ Snapshot error:', error);
+            console.error('Snapshot error:', error);
         });
     } catch (error) {
-        console.error('❌ Subscribe error:', error);
+        console.error('Subscribe error:', error);
         return () => {};
     }
 }
 
 async function updateUserStats(uid, stats) {
     if (!db) {
-        console.log('🎮 Demo mode: Stats not saved');
+        console.log('Demo mode: Stats not saved');
         return;
     }
     
@@ -281,15 +274,15 @@ async function updateUserStats(uid, stats) {
             ...stats,
             lastPlayed: firebase.firestore.FieldValue.serverTimestamp()
         });
-        console.log('✅ Stats updated');
+        console.log('Stats updated');
     } catch (error) {
-        console.error('❌ Error updating stats:', error.code, error.message);
+        console.error('Error updating stats:', error.code, error.message);
     }
 }
 
 async function resetUserBalance(uid) {
     if (!db) {
-        console.log('🎮 Demo mode: Balance reset to $1000');
+        console.log('Demo mode: Balance reset to $1000');
         return DEFAULT_BALANCE;
     }
     
@@ -299,10 +292,10 @@ async function resetUserBalance(uid) {
             balance: DEFAULT_BALANCE,
             currentStreak: 0
         });
-        console.log('✅ Balance reset to $1000');
+        console.log('Balance reset to $1000');
         return DEFAULT_BALANCE;
     } catch (error) {
-        console.error('❌ Error resetting balance:', error.code, error.message);
+        console.error('Error resetting balance:', error.code, error.message);
         throw error;
     }
 }
@@ -330,6 +323,3 @@ window.firebaseDb = {
     updateUserStats,
     resetUserBalance
 };
-
-// Initialize Firebase when this script loads and expose the ready promise
-window.firebaseReadyPromise = waitForFirebase();
