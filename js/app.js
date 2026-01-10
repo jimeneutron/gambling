@@ -24,14 +24,20 @@ const AppState = {
 // ============================================
 
 const DOM = {
-    loginModal: document.getElementById('loginModal'),
+        loginModal: document.getElementById('loginModal'),
     gameApp: document.getElementById('gameApp'),
     loadingOverlay: document.getElementById('loadingOverlay'),
     bankruptcyModal: document.getElementById('bankruptcyModal'),
     rulesModal: document.getElementById('rulesModal'),
     
     googleLoginBtn: document.getElementById('googleLoginBtn'),
-    anonymousLoginBtn: document.getElementById('anonymousLoginBtn'),
+    emailLoginBtn: document.getElementById('emailLoginBtn'),
+    emailAuthSection: document.getElementById('emailAuthSection'),
+    emailInput: document.getElementById('emailInput'),
+    passwordInput: document.getElementById('passwordInput'),
+    registerBtn: document.getElementById('registerBtn'),
+    loginBtn: document.getElementById('loginBtn'),
+    sendVerificationBtn: document.getElementById('sendVerificationBtn'),
     logoutBtn: document.getElementById('logoutBtn'),
     
     userAvatar: document.getElementById('userAvatar'),
