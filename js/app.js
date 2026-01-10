@@ -566,7 +566,9 @@ async function leaveGlobalGroup() {
         if (groupDoc.exists) {
             const groupData = groupDoc.data();
             const players = { ...groupData.gameState?.players };
-            delete players[App.playerSeat];
+            // Convert seat number to string for consistent key access (Firestore stores keys as strings)
+            const playerSeatKey = App.playerSeat.toString();
+            delete players[playerSeatKey];
             
             const playerCount = Object.keys(players).length;
             
@@ -640,7 +642,8 @@ function subscribeToGroupState() {
         console.log('Game state update:', gameState.phase, 'Players:', Object.keys(gameState.players || {}), 'Dealer:', dealerSeat);
         
         // Check if player is still in the group
-        if (!gameState.players || !gameState.players[App.playerSeat]) {
+        const playerSeatKey = App.playerSeat.toString();
+        if (!gameState.players || !gameState.players[playerSeatKey]) {
             // Only show this message if we were previously in the group
             if (App.isInGroup) {
                 App.isInGroup = false;
@@ -669,7 +672,8 @@ function subscribeToGroupState() {
         updatePlayersList(gameState.players);
         
         // Check for turn
-        const currentPlayer = gameState.players?.[gameState.currentPlayerSeat];
+        const currentPlayerSeatKey = gameState.currentPlayerSeat.toString();
+        const currentPlayer = gameState.players?.[currentPlayerSeatKey];
         if (currentPlayer && currentPlayer.id === App.currentUser.uid) {
             showTurnIndicator(currentPlayer.name);
         } else {
@@ -866,7 +870,8 @@ function handleGroupStateChange(state) {
     }
 
     // Update betting controls for current player
-    const currentPlayer = state.players[state.currentPlayerSeat];
+    const currentPlayerSeatKey = state.currentPlayerSeat.toString();
+    const currentPlayer = state.players[currentPlayerSeatKey];
     if (currentPlayer && currentPlayer.id === App.currentUser.uid && !currentPlayer.folded) {
         const myBet = currentPlayer.currentBet || 0;
         const maxBet = Math.max(...playersArray.map(p => p.currentBet || 0));
@@ -879,7 +884,8 @@ function handleGroupStateChange(state) {
 }
 
 function handleGroupActionRequired(state) {
-    const currentPlayer = state.players[state.currentPlayerSeat];
+    const currentPlayerSeatKey = state.currentPlayerSeat.toString();
+    const currentPlayer = state.players[currentPlayerSeatKey];
     if (currentPlayer) {
         showTurnIndicator(currentPlayer.name);
     }
